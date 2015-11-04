@@ -1,0 +1,16 @@
+application: hrd_sharded_counters
+version: 1
+runtime: python27
+api_version: 1
+threadsafe: true
+
+handlers:
+- url: /static
+  static_dir: shard_app/static/
+
+- url: .*
+  script: hrd_sharded_counters.wsgi.application
+
+libraries:
+- name: django
+  version: 1.5
