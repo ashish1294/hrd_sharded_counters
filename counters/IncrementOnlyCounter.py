@@ -59,6 +59,21 @@ class IncrementOnlyCounter(ndb.Model):
       memcache.add(memcache_var, count)
     return count
 
+  @ndb.transactional
+  def increase_shards(self):
+    """
+      This function doubles the number of current shards associated with this
+      counter - provided it doesn't grow more than the max_shards limit.
+
+      Returns:
+        It returns if there is further space for expansion
+    """
+    counter = self.key.get()
+    counter.num_shards = min(counter.max_shards, counter.num_shards * 2)
+    counter.put()
+    return counter.num_shards < counter.max_shards
+
+
   @ndb.transactional(xg=True)
   def _increment(self, delta, request_id):
     """
@@ -87,9 +102,24 @@ class IncrementOnlyCounter(ndb.Model):
   def increment(self, delta):
     """
       Function that increments a random shard. It generates a unique request id
-      for each call
+      for each call using the uuid model
       Args:
-        delta : Quantity by which a shard has to be incremented
+        delta : Quantity by which a shard has to be incremented (positive)
     """
-
-  @ndb.transactional(retries=0)
+    request_id = str(uuid.uuid4())
+    success = False
+    shard_growth = True
+    retry = True
+    while retry:
+      try:
+        self._increment(delta, request_id)
+        success = True
+      except datastore_errors.TransactionFailedError:
+        if shard_growth:
+          # Contention Detected. Increasing number of shards here and then
+          # retrying transaction.
+          shard_growth = self.increase_shards()
+        else:
+          # If the shard is already max stop retrying and give up. There is too
+          # much contention - beyond what we can handle
+          retry = False
