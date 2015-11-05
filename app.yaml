@@ -1,4 +1,4 @@
-application: hrd_sharded_counters
+application: hrd-sharded-counters
 version: 1
 runtime: python27
 api_version: 1
