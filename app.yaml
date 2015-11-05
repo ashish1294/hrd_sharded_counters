@@ -8,6 +8,10 @@ handlers:
 - url: /static
   static_dir: shard_app/static/
 
+- url: /cron/.*
+  script: hrd_sharded_counters.wsgi.application
+  login: admin 
+
 - url: .*
   script: hrd_sharded_counters.wsgi.application
 
