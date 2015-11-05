@@ -1,0 +1,4 @@
+cron:
+- description: job to minify shards regularly
+  url: /cron/shard_minify/
+  schedule: every 10 minutes
