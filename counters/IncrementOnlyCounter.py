@@ -1,7 +1,7 @@
 from google.appengine.ext import ndb
 from google.appengine.api import memcache
 
-SHARD_KEY_TEMPLATE = 'in_stock_shard-{0}-{1}'
+SHARD_KEY_TEMPLATE = '<increment_only></increment_only>_shard-{0}-{1}'
 MAX_ENTITIES_PER_TRANSACTION = 25
 
 class IncrementOnlyShard(ndb.Model):
@@ -15,10 +15,21 @@ class IncrementOnlyShard(ndb.Model):
 class ShardIncrementTransaction(ndb.Model):
   shard_key = ndb.KeyProperty(kind=IncrementOnlyShard)
 
+def validate_counter(prop, value):
+  print "Validating Model", prop._name
+  if prop._name == 'max_shards' or prop._name == 'num_shards':
+    if value < 1:
+      raise datastore_errors.BadValueError(prop._name)
+
 class IncrementOnlyCounter(ndb.Model):
-  num_shards = ndb.IntegerProperty(default=0, indexed=False)
-  max_shards = ndb.IntegerProperty(default=20, indexed=False)
+  num_shards = ndb.IntegerProperty(default=1,
+    indexed=False,
+    validator=validate_counter)
+  max_shards = ndb.IntegerProperty(default=20,
+    indexed=False,
+    validator=validate_counter)
   dynamic_growth = ndb.BooleanProperty(default=True, indexed=False)
+  idempotency = ndb.BooleanProperty(deafault=False, indexed=False)
 
   def _format_shard_key(self, index):
     """
@@ -91,6 +102,8 @@ class IncrementOnlyCounter(ndb.Model):
       memcache.add(memcache_var, count)
     return count
 
+  def reset_counter(self, num_shards)
+
   @ndb.transactional
   def expand_shards(self):
     """
@@ -143,6 +156,16 @@ class IncrementOnlyCounter(ndb.Model):
       counter.num_shards -= value
       counter.put()
 
+  @ndb.transactional
+  def _increment_shard(self, delta):
+    # Re-fetching counter because it might be stale
+    counter = self.key.get()
+    index = random.randint(0, counter.num_shards - 1)
+    shard_key = self._format_shard_key(index)
+    shard = IncrementOnlyShard.get_or_insert(shard_key)
+    shard.count += delta
+    shard.put()
+
   @ndb.transactional(xg=True)
   def _increment(self, delta, request_id):
     """
@@ -157,13 +180,7 @@ class IncrementOnlyCounter(ndb.Model):
     log_key = ndb.Key(ShardIncrementTransaction, request_id)
     if log_key.get() is not None:
       return
-    # Re-fetching counter because it might be stale
-    counter = self.key.get()
-    index = random.randint(0, counter.num_shards - 1)
-    shard_key = self._format_shard_key(index)
-    shard = IncrementOnlyShard.get_or_insert(shard_key)
-    shard.count += delta
-    shard.put()
+
 
     # Inserting Log for this shard
     ShardIncrementTransaction.get_or_insert(log_key, shard_key=shard_key)
