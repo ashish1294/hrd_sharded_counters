@@ -3,13 +3,11 @@ from django.http import HttpResponse
 from google.appengine.ext import ndb
 from counters import IncrementOnlyCounter as IOC
 from google.appengine.api import datastore_errors
+from models import IncrementTransaction
 import uuid
 
 UNSHARDED_COUNTER_KEY = 'unsharded_counter'
 SHARDED_COUNTER_KEY = 'sharded_counter'
-
-class IncrementTransaction(ndb.Model):
-  shard_key = ndb.KeyProperty(kind=IOC.IncrementOnlyShard)
 
 @ndb.transactional(xg=True)
 def increment_normal_counter(delta, request_id):
@@ -24,7 +22,10 @@ def increment_normal_counter(delta, request_id):
   counter.put()
 
 def increment_sharded_counter(delta):
-  counter = IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY)
+  counter = IOC.IncrementOnlyCounter.get_or_insert(
+      SHARDED_COUNTER_KEY,
+      idempotency=True,
+      max_shards=30)
   counter.increment(delta)
 
 def minify_shard(request):
@@ -48,9 +49,9 @@ def IncrementOnlyCounter(request):
   counters = get_increment_counters()
   print counters
   response = render(request, 'IncrementOnlyCounter.html', {
-     'sharded_counter'   : counters[0],
-     'unsharded_counter' : counters[1]
-    })
+      'sharded_counter' : counters[0],
+      'unsharded_counter' : counters[1]
+  })
   return response
 
 def increment_counter(request):
@@ -78,8 +79,8 @@ def increment_counter(request):
     # Increment Sharded Counter
     try:
       increment_sharded_counter(delta)
-    except datastore_errors.TransactionFailedError, e:
-      response = HttpResponse("Request Dropped : " + str(e))
+    except datastore_errors.TransactionFailedError, error_message:
+      response = HttpResponse("Request Dropped : " + str(error_message))
     else:
       response = HttpResponse("Request Successful")
 
