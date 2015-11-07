@@ -20,5 +20,5 @@ urlpatterns = [
     url(r'^admin/', include(admin.site.urls)),
     url(r'^cron/minify_shard/?$', minify_shard),
     url(r'^increment/?$', increment_counter),
-    url(r'^status/?$', IncrementOnlyCounter)
+    url(r'^status/?$', status)
 ]

@@ -3,19 +3,19 @@
 		<title>Test Application</title>
 	</head>
 	<body>
-		<div id="sharded_counter">
-			<h1>Sharded Counter</h1>
-			<h2>{{sharded_counter}}</h2>
-		</div>
 		<div id="unsharded_counter">
-			<h1>Normal Counter</h1>
+			<h1>Unsharded Counter</h1>
 			<h2>{{unsharded_counter}}</h2>
+		</div>
+		<div id="sharded_counter">
+			<h1>Sharded Increment Only Counter</h1>
+			<h2>{{sharded_counter}}</h2>
 		</div>
 		<div>
 			<form action="/increment" method="GET">
 				<select name="type">
-					<option value="0">Normal Counter</option>
-					<option value="1">Sharded Counter</option>
+					<option value="0">Unsharded Counter</option>
+					<option value="1">Sharded Increment Counter</option>
 				</select>
 				<input type="number" min="0" name="delta">
 				<input type="submit" value="Submit"/>
