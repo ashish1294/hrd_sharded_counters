@@ -1,5 +1,5 @@
 [MESSAGES CONTROL]
-disable=design,similarities,no-self-use,attribute-defined-outside-init,locally-disabled,star-args,pointless-except,bad-option-value,global-statement,fixme,suppressed-message,useless-suppression,import-error,relative-import,unused-wildcard-import,no-name-in-module,method-hidden,access-member-before-definition,attribute-defined-outside-init,interface-is-not-class,missing-interface-method,arguments-differ,signature-differs,abstract-method,unresolved-interface,no-init,no-member,maybe-no-member,missing-docstring,cell-var-in-loop
+disable=design,similarities,no-self-use,attribute-defined-outside-init,locally-disabled,star-args,pointless-except,bad-option-value,global-statement,fixme,suppressed-message,useless-suppression,import-error,relative-import,unused-wildcard-import,no-name-in-module,method-hidden,access-member-before-definition,attribute-defined-outside-init,interface-is-not-class,missing-interface-method,arguments-differ,signature-differs,abstract-method,unresolved-interface,no-init,no-member,maybe-no-member,missing-docstring,cell-var-in-loop,no-value-for-parameter,protected-access,pointless-string-statement
 
 [REPORTS]
 

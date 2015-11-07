@@ -18,22 +18,25 @@ class ShardIncrementTransaction(ndb.Model):
   shard_key = ndb.KeyProperty(kind=IncrementOnlyShard)
 
 def validate_counter(prop, value):
-  if prop._name == 'max_shards' or prop._name == 'num_shards':
-    if value < 1:
-      raise datastore_errors.BadValueError(prop._name)
+  if value < 1:
+    raise datastore_errors.BadValueError(prop + ' should be >= 1')
 
 class IncrementOnlyCounter(ndb.Model):
-  num_shards = ndb.IntegerProperty(default=10,
-    indexed=False,
-    validator=validate_counter)
-  max_shards = ndb.IntegerProperty(default=20,
-    indexed=False,
-    validator=validate_counter)
+  num_shards = ndb.IntegerProperty(
+      default=10,
+      indexed=False,
+      validator=validate_counter,
+      verbose_name='Number of Shards')
+  max_shards = ndb.IntegerProperty(
+      default=20,
+      indexed=False,
+      validator=validate_counter,
+      verbose_name='Maximum Number of Shards')
   dynamic_growth = ndb.BooleanProperty(default=True, indexed=False)
   idempotency = ndb.BooleanProperty(default=False, indexed=False)
 
   def __str__(self):
-    return "(Num = " + str(self.num_shards) + ", Max = " + str(self.max_shards) \
+    return "(Num = " + str(self.num_shards) + ", Max = " + str(self.max_shards)\
       + ", Dynamic = " + str(self.dynamic_growth) + " Idempotency = " \
       + str(self.idempotency) + ")"
 
@@ -57,7 +60,7 @@ class IncrementOnlyCounter(ndb.Model):
     """
     return ndb.Key(IncrementOnlyShard, self._format_shard_key(index))
 
-  def _get_shard_keys(self, start = 0, end = -1):
+  def _get_shard_keys(self, start=0, end=-1):
     """
       This function returns all the keys of each shard of this counter in a
       range [start, end). Defaults to all shards
@@ -72,7 +75,7 @@ class IncrementOnlyCounter(ndb.Model):
       end = self.num_shards
     return [self._get_shard_key(index) for index in range(start, end)]
 
-  def _get_shards(self, start = 0, end = -1):
+  def _get_shards(self, start=0, end=-1):
     """
       This function returns all the shards associated with this counter within a
       given range [start, end). Defaults to all shards
@@ -124,15 +127,18 @@ class IncrementOnlyCounter(ndb.Model):
     """
     return self.count
 
+  """
+    This function is under development
+
   @ndb.transactional()
-  def reset_counter(self, value=0, shards=-1):
+  def reset_counter(self, shards=-1):
     if end == -1:
       end = self.num_shards
     counter = self.key.get()
     shards = min(shards, MAX_ENTITIES_PER_TRANSACTION - 1)
     counter.num_shards = shards
     counter.put()
-
+  """
 
   @ndb.transactional
   def expand_shards(self):
@@ -150,7 +156,7 @@ class IncrementOnlyCounter(ndb.Model):
     self.num_shards = counter.num_shards
     return counter.num_shards < counter.max_shards
 
-  @ndb.transactional(xg = True)
+  @ndb.transactional(xg=True)
   def minify_shards(self):
     """
       Function to minify shards. Since NDB allows 25 entity groups per
@@ -168,7 +174,7 @@ class IncrementOnlyCounter(ndb.Model):
 
     if value != 0:
       shard_list = counter._get_shards(
-                    counter.num_shards - value, counter.num_shards)
+          counter.num_shards - value, counter.num_shards)
       total_count = 0
 
       if shard_list[0] is None:
@@ -264,5 +270,5 @@ class IncrementOnlyCounter(ndb.Model):
           # much contention - beyond what we can handle
           retry = False
     if not success:
-      raise datastore_errors.TransactionFailedError("Unable to increment" +
-                                          "counter even after max expansion")
+      raise datastore_errors.TransactionFailedError("Unable to increment \
+        counter even after max expansion")

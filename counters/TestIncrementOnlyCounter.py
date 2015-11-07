@@ -4,6 +4,10 @@ from google.appengine.ext import ndb
 from IncrementOnlyCounter import IncrementOnlyCounter
 import unittest, random
 
+INCREMENT_STEPS = 10
+INCREMENT_VALUE = 86
+RAND_INCREMENT_MAX = 100
+
 class TestIncrementOnlyTest(unittest.TestCase):
 
   @classmethod
@@ -19,17 +23,13 @@ class TestIncrementOnlyTest(unittest.TestCase):
     cls.counter_normal = IncrementOnlyCounter(max_shards=30)
     cls.counter_normal.put()
     cls.counter_idempotent = IncrementOnlyCounter(idempotency=True,
-      max_shards=30)
+                                                  max_shards=30)
     cls.counter_idempotent.put()
     cls.counter_static = IncrementOnlyCounter(dynamic_growth=False,
-      num_shards=10)
+                                              num_shards=10)
     cls.counter_static.put()
 
   def test_increment(self):
-
-    INCREMENT_STEPS = 10
-    INCREMENT_VALUE = 86
-    RAND_INCREMENT_MAX = 100
 
     # Storing the Post Test Expected Count count of the counter
     normal_val = self.counter_normal.count + INCREMENT_STEPS
@@ -37,7 +37,7 @@ class TestIncrementOnlyTest(unittest.TestCase):
     static_val = self.counter_static.count + INCREMENT_STEPS
 
     # Testing Unit Increment Functionality
-    for i in range(INCREMENT_STEPS):
+    for dummy in range(INCREMENT_STEPS):
       self.counter_normal.increment()
       self.counter_idempotent.increment()
       self.counter_static.increment()
@@ -47,7 +47,7 @@ class TestIncrementOnlyTest(unittest.TestCase):
     self.assertEqual(self.counter_static.count, static_val)
 
     # Testing the non-unit delta increment functionality
-    for i in range(INCREMENT_STEPS):
+    for dummy in range(INCREMENT_STEPS):
       self.counter_normal.increment(INCREMENT_VALUE)
       self.counter_idempotent.increment(INCREMENT_VALUE)
       self.counter_static.increment(INCREMENT_VALUE)
@@ -63,7 +63,7 @@ class TestIncrementOnlyTest(unittest.TestCase):
     self.assertEqual(self.counter_static.count, static_val)
 
     # Testing with few random delta
-    for i in range(INCREMENT_STEPS):
+    for dummy in range(INCREMENT_STEPS):
       delta = random.randint(1, RAND_INCREMENT_MAX)
       normal_val += delta
       self.counter_normal.increment(delta)
