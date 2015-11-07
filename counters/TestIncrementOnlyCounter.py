@@ -26,9 +26,8 @@ class TestIncrementOnlyTest(unittest.TestCase):
     cls.counter_static.put()
 
   def test_increment(self):
-    print "Testing the Increment Functionality"
 
-    INCREMENT_STEPS = 100
+    INCREMENT_STEPS = 10
     INCREMENT_VALUE = 86
     RAND_INCREMENT_MAX = 100
 
@@ -82,7 +81,6 @@ class TestIncrementOnlyTest(unittest.TestCase):
     self.assertEqual(self.counter_static.count, static_val)
 
   def test_minify_shard(self):
-    print "Testing the Shard Minifying and Expansion Functionality"
 
     # Storing the post-test expected value of each counter
     normal_val = self.counter_normal.count

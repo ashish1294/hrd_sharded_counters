@@ -1,5 +1,7 @@
 from google.appengine.ext import ndb
 from google.appengine.api import memcache
+from google.appengine.api import datastore_errors
+import random, uuid
 
 SHARD_KEY_TEMPLATE = 'increment_only_shard-{0}-{1}'
 MAX_ENTITIES_PER_TRANSACTION = 25
@@ -16,20 +18,27 @@ class ShardIncrementTransaction(ndb.Model):
   shard_key = ndb.KeyProperty(kind=IncrementOnlyShard)
 
 def validate_counter(prop, value):
-  print "Validating Model", prop._name
   if prop._name == 'max_shards' or prop._name == 'num_shards':
     if value < 1:
       raise datastore_errors.BadValueError(prop._name)
 
 class IncrementOnlyCounter(ndb.Model):
-  num_shards = ndb.IntegerProperty(default=1,
+  num_shards = ndb.IntegerProperty(default=10,
     indexed=False,
     validator=validate_counter)
   max_shards = ndb.IntegerProperty(default=20,
     indexed=False,
     validator=validate_counter)
   dynamic_growth = ndb.BooleanProperty(default=True, indexed=False)
-  idempotency = ndb.BooleanProperty(deafault=False, indexed=False)
+  idempotency = ndb.BooleanProperty(default=False, indexed=False)
+
+  def __str__(self):
+    return "(Num = " + str(self.num_shards) + ", Max = " + str(self.max_shards) \
+      + ", Dynamic = " + str(self.dynamic_growth) + " Idempotency = " \
+      + str(self.idempotency) + ")"
+
+  def __repr__(self):
+    return self.__str__()
 
   def _format_shard_key(self, index):
     """
@@ -48,7 +57,7 @@ class IncrementOnlyCounter(ndb.Model):
     """
     return ndb.Key(IncrementOnlyShard, self._format_shard_key(index))
 
-  def _get_shard_keys(self, start = 0, end = self.num_shards):
+  def _get_shard_keys(self, start = 0, end = -1):
     """
       This function returns all the keys of each shard of this counter in a
       range [start, end). Defaults to all shards
@@ -59,9 +68,11 @@ class IncrementOnlyCounter(ndb.Model):
       Returns:
         A list of keys in the given range
     """
+    if end == -1:
+      end = self.num_shards
     return [self._get_shard_key(index) for index in range(start, end)]
 
-  def _get_shards(self, start = 0, end = self.num_shards):
+  def _get_shards(self, start = 0, end = -1):
     """
       This function returns all the shards associated with this counter within a
       given range [start, end). Defaults to all shards
@@ -72,9 +83,11 @@ class IncrementOnlyCounter(ndb.Model):
       Returns:
         A list of shards in the given range
     """
-      return ndb.get_multi(self._get_all_shard_keys(start, end))
+    if end == -1:
+      end = self.num_shards
+    return ndb.get_multi(self._get_shard_keys(start, end))
 
-  def clear_logs(self, start=0, end=self.num_shards):
+  def clear_logs(self, start=0, end=-1):
     """
       This functions deletes increment tx logs for all shards in the given range
       [start, end). Defaults to all shards
@@ -83,6 +96,8 @@ class IncrementOnlyCounter(ndb.Model):
         end : End  index (last index + 1) of the shard range (default to
               num_shards)
     """
+    if end == -1:
+      end = self.num_shards
     for i in range(start, end):
       self._get_shard_key(i).get().remove_tx_log()
 
@@ -110,7 +125,9 @@ class IncrementOnlyCounter(ndb.Model):
     return self.count
 
   @ndb.transactional()
-  def reset_counter(self, value=0, shards=self.num_shards):
+  def reset_counter(self, value=0, shards=-1):
+    if end == -1:
+      end = self.num_shards
     counter = self.key.get()
     shards = min(shards, MAX_ENTITIES_PER_TRANSACTION - 1)
     counter.num_shards = shards
@@ -128,6 +145,9 @@ class IncrementOnlyCounter(ndb.Model):
     counter = self.key.get()
     counter.num_shards = min(counter.max_shards, counter.num_shards * 2)
     counter.put()
+
+    #Updating the local copy of object
+    self.num_shards = counter.num_shards
     return counter.num_shards < counter.max_shards
 
   @ndb.transactional(xg = True)
@@ -145,6 +165,7 @@ class IncrementOnlyCounter(ndb.Model):
 
     value = counter.num_shards / 2
     value = min(value, MAX_ENTITIES_PER_TRANSACTION - 1)
+
     if value != 0:
       shard_list = counter._get_shards(
                     counter.num_shards - value, counter.num_shards)
@@ -168,8 +189,10 @@ class IncrementOnlyCounter(ndb.Model):
 
       counter.num_shards -= value
       counter.put()
+      #Updating the local copy of object
+      self.num_shards = counter.num_shards
 
-  @ndb.transactional
+  @ndb.transactional(xg=True)
   def _increment(self, delta):
     """
       This function increases a random shard by a given quantity. We randomly
@@ -187,6 +210,9 @@ class IncrementOnlyCounter(ndb.Model):
     shard.count += delta
     shard.put()
 
+    # Incrementing the counter val in Memcache
+    memcache.incr(str(counter.key.id()), delta=delta)
+
   @ndb.transactional(xg=True)
   def _increment_idempotent(self, delta, request_id):
     """
@@ -202,13 +228,10 @@ class IncrementOnlyCounter(ndb.Model):
     log_key = ndb.Key(ShardIncrementTransaction, request_id)
     if log_key.get() is not None:
       return
-    self._increment_shard(delta)
+    self._increment(delta)
 
     # Inserting Log for this shard
-    ShardIncrementTransaction.get_or_insert(log_key)
-
-    # Incrementing The value in memcache. No action taken if key is absent
-    memcache.incr(str(self.key.id()), delta=quantity)
+    ShardIncrementTransaction.get_or_insert(request_id)
 
   def increment(self, delta=1):
     """
@@ -228,7 +251,7 @@ class IncrementOnlyCounter(ndb.Model):
     retry = True
     while retry:
       try:
-        self._increment(delta, request_id)
+        self._increment_idempotent(delta, request_id)
         success = True
         retry = False
       except datastore_errors.TransactionFailedError:
