@@ -241,4 +241,5 @@ class IncrementOnlyCounter(ndb.Model):
           # much contention - beyond what we can handle
           retry = False
     if not success:
-      raise datastore_errors.TransactionFailedError("Unable to increment counter even after max expansion")
+      raise datastore_errors.TransactionFailedError("Unable to increment" +
+                                          "counter even after max expansion")
