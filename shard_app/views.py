@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponse
 from google.appengine.ext import ndb
+from google.appengine.api import memcache
 from counters import IncrementOnlyCounter as IOC
 from google.appengine.api import datastore_errors
 from models import IncrementTransaction
@@ -13,7 +14,7 @@ REQ_SHARDED_INCREMENT = "1"
 REQ_SHARDED_GENERAL = "2"
 
 @ndb.transactional(xg=True)
-def increment_normal_counter(delta, request_id):
+def increment_unsharded_counter(delta, request_id):
   log_key = ndb.Key(IncrementTransaction, request_id)
   if log_key.get() is not None:
     return
@@ -23,6 +24,14 @@ def increment_normal_counter(delta, request_id):
   counter = IOC.IncrementOnlyShard.get_or_insert(UNSHARDED_COUNTER_KEY)
   counter.count += delta
   counter.put()
+  memcache.incr(UNSHARDED_COUNTER_KEY, delta=delta)
+
+def unsharded_counter_value():
+  count = memcache.get(UNSHARDED_COUNTER_KEY)
+  if count is None:
+    count = ndb.Key(IOC.IncrementOnlyShard, UNSHARDED_COUNTER_KEY).get().count
+    memcache.add(UNSHARDED_COUNTER_KEY, count)
+  return count
 
 def increment_sharded_counter(delta):
   counter = IOC.IncrementOnlyCounter.get_or_insert(
@@ -43,18 +52,16 @@ def status(request):
   counter_type = params.get('type', '-1')
 
   if counter_type == REQ_UNSHARDED:
-    val = IOC.IncrementOnlyShard.get_or_insert(UNSHARDED_COUNTER_KEY).count
-    response = HttpResponse(str(val))
+    response = HttpResponse(str(unsharded_counter_value()))
   elif counter_type == REQ_SHARDED_INCREMENT:
     val = IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY).count
     response = HttpResponse(str(val))
   else:
     # Status of all counters
-    val1 = IOC.IncrementOnlyShard.get_or_insert(UNSHARDED_COUNTER_KEY).count
-    val2 = IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY).count
+    val2 = ndb.Key(IOC.IncrementOnlyCounter, SHARDED_COUNTER_KEY).get().count
     response = render(request, 'status.html', {
-        'unsharded_counter'   : val1,
-        'sharded_counter'     : val2
+        'unsharded_counter' : unsharded_counter_value(),
+        'sharded_counter' : val2
     })
   return response
 
@@ -69,10 +76,10 @@ def increment_counter(request):
     delta = 0
 
   if counter_type == REQ_UNSHARDED:
-    # Increment Normal Counter
+    # Increment Unsharded Counter
     try:
       request_id = str(uuid.uuid4())
-      increment_normal_counter(delta, request_id)
+      increment_unsharded_counter(delta, request_id)
     except datastore_errors.TransactionFailedError:
       response = HttpResponse("Request dropped")
     else:

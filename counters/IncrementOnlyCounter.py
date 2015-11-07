@@ -232,7 +232,7 @@ class IncrementOnlyCounter(ndb.Model):
         request_id : unique request id generated for this operation
     """
     log_key = ndb.Key(ShardIncrementTransaction, request_id)
-    if log_key.get() is not None:
+    if log_key.get() is not None:7
       return
     self._increment(delta)
 
