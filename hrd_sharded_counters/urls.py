@@ -18,5 +18,7 @@ from django.contrib import admin
 from shard_app.views import *
 urlpatterns = [
     url(r'^admin/', include(admin.site.urls)),
-    url(r'^cron/shard_minify/', shard_minify)
+    url(r'^cron/shard_minify/', shard_minify),
+    url(r'^/increment', increment_counter),
+    url(r'^/IncrementOnlyCounter', IncrementOnlyCounter)
 ]
