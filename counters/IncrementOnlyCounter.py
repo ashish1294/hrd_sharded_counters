@@ -1,7 +1,7 @@
 from google.appengine.ext import ndb
 from google.appengine.api import memcache
 
-SHARD_KEY_TEMPLATE = '<increment_only></increment_only>_shard-{0}-{1}'
+SHARD_KEY_TEMPLATE = 'increment_only_shard-{0}-{1}'
 MAX_ENTITIES_PER_TRANSACTION = 25
 
 class IncrementOnlyShard(ndb.Model):
@@ -89,7 +89,7 @@ class IncrementOnlyCounter(ndb.Model):
   @property
   def count(self):
     """
-      Retrieve the value for a
+      Retrieve the current counter value. Sums up values of all shards.
     """
     memcache_var = str(self.key.id())
     count = memcache.get(memcache_var)
@@ -102,7 +102,20 @@ class IncrementOnlyCounter(ndb.Model):
       memcache.add(memcache_var, count)
     return count
 
-  def reset_counter(self, num_shards)
+  @property
+  def value(self):
+    """
+      This function is just an alias for the count function
+    """
+    return self.count
+
+  @ndb.transactional()
+  def reset_counter(self, value=0, shards=self.num_shards):
+    counter = self.key.get()
+    shards = min(shards, MAX_ENTITIES_PER_TRANSACTION - 1)
+    counter.num_shards = shards
+    counter.put()
+
 
   @ndb.transactional
   def expand_shards(self):
@@ -157,22 +170,31 @@ class IncrementOnlyCounter(ndb.Model):
       counter.put()
 
   @ndb.transactional
-  def _increment_shard(self, delta):
+  def _increment(self, delta):
+    """
+      This function increases a random shard by a given quantity. We randomly
+      pick any shard counter and add the quantity to it.
+      Note: This is not an idempotent function ! It may be incremented multiple
+            times for the same request.
+      Args:
+        delta : Quantity to be incremented
+    """
     # Re-fetching counter because it might be stale
     counter = self.key.get()
     index = random.randint(0, counter.num_shards - 1)
-    shard_key = self._format_shard_key(index)
+    shard_key = counter._format_shard_key(index)
     shard = IncrementOnlyShard.get_or_insert(shard_key)
     shard.count += delta
     shard.put()
 
   @ndb.transactional(xg=True)
-  def _increment(self, delta, request_id):
+  def _increment_idempotent(self, delta, request_id):
     """
       This function increases a random shard by a given quantity. We randomly
       pick any shard counter and add the quantity to it. This function is an
       internal function and should not be called from external application
-      directly.
+      directly. It is an idempotent function - which maintain logs of all
+      increment counters and doesn't re-applies them.
       Args:
         delta : Quantity to be incremented
         request_id : unique request id generated for this operation
@@ -180,21 +202,26 @@ class IncrementOnlyCounter(ndb.Model):
     log_key = ndb.Key(ShardIncrementTransaction, request_id)
     if log_key.get() is not None:
       return
-
+    self._increment_shard(delta)
 
     # Inserting Log for this shard
-    ShardIncrementTransaction.get_or_insert(log_key, shard_key=shard_key)
+    ShardIncrementTransaction.get_or_insert(log_key)
 
     # Incrementing The value in memcache. No action taken if key is absent
     memcache.incr(str(self.key.id()), delta=quantity)
 
-  def increment(self, delta):
+  def increment(self, delta=1):
     """
       Function that increments a random shard. It generates a unique request id
       for each call using the uuid model
       Args:
         delta : Quantity by which a shard has to be incremented (positive)
     """
+    if self.idempotency == False:
+      # Call Normal Version
+      self._increment(delta)
+      return
+
     request_id = str(uuid.uuid4())
     success = False
     shard_growth = self.dynamic_growth
@@ -213,3 +240,5 @@ class IncrementOnlyCounter(ndb.Model):
           # If the shard is already max stop retrying and give up. There is too
           # much contention - beyond what we can handle
           retry = False
+    if not success:
+      raise datastore_errors.TransactionFailedError("Unable to increment counter even after max expansion")
