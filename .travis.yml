@@ -5,6 +5,3 @@ install:
   - pip install tox
 script:
   - tox
-env:
-  - TOXENV=pylint
-  - TOXENV=django18
