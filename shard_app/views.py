@@ -40,6 +40,7 @@ def increment_sharded_counter(delta):
       max_shards=30)
   counter.increment(delta)
 
+#pylint: disable=unused-argument
 def minify_shard(request):
   counters = IOC.IncrementOnlyCounter.query()
   for counter in counters.iter():

@@ -1,9 +1,8 @@
 from google.appengine.ext import testbed
 from google.appengine.datastore import datastore_stub_util
 from google.appengine.ext import ndb
-from IncrementOnlyCounter import IncrementOnlyCounter, ShardIncrementTransaction
-import unittest, random, time
-from threading import current_thread, Thread, Event
+from IncrementOnlyCounter import IncrementOnlyCounter
+import unittest, random
 
 # Increment Test Constants
 INCREMENT_STEPS = 10
@@ -30,7 +29,6 @@ class TestIncrementOnlyTest(unittest.TestCase):
     cls.counter_static = IncrementOnlyCounter(dynamic_growth=False,
                                               num_shards=10)
     cls.counter_static.put()
-    cls.quitevent = Event()
 
   def test_increment(self):
 
