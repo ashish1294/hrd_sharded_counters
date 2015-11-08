@@ -2,11 +2,18 @@ from google.appengine.ext import testbed
 from google.appengine.datastore import datastore_stub_util
 from google.appengine.ext import ndb
 from IncrementOnlyCounter import IncrementOnlyCounter
-import unittest, random
+import unittest, random, time
+from threading import current_thread, Thread, Event
 
+# Increment Test Constants
 INCREMENT_STEPS = 10
 INCREMENT_VALUE = 86
 RAND_INCREMENT_MAX = 100
+
+# Parallel Increment Test Constants
+NUM_THREADS = 5
+TIME_AT_PEAK_QPS = 20
+DELAY_BETWEEN_THREAD_START = 1
 
 class TestIncrementOnlyTest(unittest.TestCase):
 
@@ -28,6 +35,7 @@ class TestIncrementOnlyTest(unittest.TestCase):
     cls.counter_static = IncrementOnlyCounter(dynamic_growth=False,
                                               num_shards=10)
     cls.counter_static.put()
+    cls.quitevent = Event()
 
   def test_increment(self):
 
@@ -145,6 +153,57 @@ class TestIncrementOnlyTest(unittest.TestCase):
     self.assertEqual(self.counter_normal.count, normal_val)
     self.assertEqual(self.counter_idempotent.count, idempotent_val)
     self.assertEqual(self.counter_static.count, static_val)
+
+  def idempotent_increment_only_task(self):
+    """
+      This task is executed by each thread. It only continuously increments the
+      idempotent counter.
+    """
+    # Storing the post-test expected value of each counter
+    idempotent_val = self.counter_idempotent.count
+
+    while not self.quitevent.is_set():
+      try:
+        self.counter_idempotent.increment()
+        idempotent_val += 1
+        ndb.transaction(lambda: self.table.increment_instock(1))
+        self.assertEqual(cart_context(test_user, {})['cart'].cart_total,
+                         (no_of_prod - 1) * self.table.price)
+        context = cart_context(test_user, params)
+        self.assertIn('cart', context)
+        cart = context['cart']
+        self.assertIsInstance(cart, Cart)
+        self.assertEqual(cart.user_key, test_user.key)
+        self.assertEqual(len(cart.items), 1)
+        self.assertEqual(cart.items[0].product_key, self.table.key)
+        expected_total = self.table.price * no_of_prod
+        self.assertEqual(cart.cart_total, expected_total)
+        time.sleep(1)
+      except Product.WriteContentionException:
+        print "Too much Contention! Giving Up----------------------------------"
+        return
+      except Exception:
+        print "Exception. Test Failed------------------------------------------"
+        self.quitevent.set()
+        traceback.print_exc(file=sys.stdout)
+    return
+
+  def test_parallel_increment_idempotent(self):
+    """
+      This test is intended to verify the behavior of the idempotent counter
+      when it is bombarded with parallel increment requests.
+    """
+    # First testing for increment only request
+    threads = []
+    for _ in range(self.NUM_THREADS):
+      thread = Thread(target=self.thread_task_increment)
+      thread.start()
+      threads.append(thread)
+      time.sleep(self.DELAY_BETWEEN_THREAD_START)
+    time.sleep(self.TIME_AT_PEAK_QPS)
+    self.quitevent.set()
+    for thread in threads:
+      thread.join(1.0)
 
   @classmethod
   def tearDownClass(cls):
