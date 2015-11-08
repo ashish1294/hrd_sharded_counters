@@ -8,4 +8,3 @@ script:
 env:
   - TOXENV=pylint
   - TOXENV=django18
-  - TOXENV=base
