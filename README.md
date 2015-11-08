@@ -1,4 +1,7 @@
 # hrd_sharded_counters
+
+[![Build Status](https://magnum.travis-ci.com/ashish1294/hrd_sharded_counters.svg?token=2Nn4SpQTSFpAmqNW7tqr&branch=master)](https://magnum.travis-ci.com/ashish1294/hrd_sharded_counters)
+
 Sharded Counter Implementation using NDB for Google Cloud Datastore
 
 Dependencies
