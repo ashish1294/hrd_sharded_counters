@@ -29,7 +29,7 @@ def increment_unsharded_counter(delta, request_id):
 def unsharded_counter_value():
   count = memcache.get(UNSHARDED_COUNTER_KEY)
   if count is None:
-    count = ndb.Key(IOC.IncrementOnlyShard, UNSHARDED_COUNTER_KEY).get().count
+    count = IOC.IncrementOnlyShard.get_or_insert(UNSHARDED_COUNTER_KEY).count
     memcache.add(UNSHARDED_COUNTER_KEY, count)
   return count
 
@@ -59,7 +59,7 @@ def status(request):
     response = HttpResponse(str(val))
   else:
     # Status of all counters
-    val2 = ndb.Key(IOC.IncrementOnlyCounter, SHARDED_COUNTER_KEY).get().count
+    val2 = val = IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY).count
     response = render(request, 'status.html', {
         'unsharded_counter' : unsharded_counter_value(),
         'sharded_counter' : val2
@@ -78,22 +78,13 @@ def increment_counter(request):
 
   if counter_type == REQ_UNSHARDED:
     # Increment Unsharded Counter
-    try:
-      request_id = str(uuid.uuid4())
-      increment_unsharded_counter(delta, request_id)
-    except datastore_errors.TransactionFailedError:
-      response = HttpResponse("Request dropped")
-    else:
-      response = HttpResponse("Request Successful")
-
+    request_id = str(uuid.uuid4())
+    increment_unsharded_counter(delta, request_id)
+    response = HttpResponse("Request Successful")
   elif counter_type == REQ_SHARDED_INCREMENT:
     # Increment Sharded Counter
-    try:
-      increment_sharded_counter(delta)
-    except datastore_errors.TransactionFailedError, error_message:
-      response = HttpResponse("Request Dropped : " + str(error_message))
-    else:
-      response = HttpResponse("Request Successful")
+    increment_sharded_counter(delta)
+    response = HttpResponse("Request Successful")
   else:
     response = HttpResponse("Invalid parameters" + str(counter_type))
 
