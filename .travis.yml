@@ -6,3 +6,7 @@ install:
   - pip install -t django django
 script:
   - tox
+notifications:
+  irc: "chat.freenode.net#bug-assassins"
+  on_success: always
+  on_failure: always
