@@ -3,7 +3,6 @@ from django.http import HttpResponse
 from google.appengine.ext import ndb
 from google.appengine.api import memcache
 from counters import IncrementOnlyCounter as IOC
-from google.appengine.api import datastore_errors
 from models import IncrementTransaction
 import uuid
 
@@ -59,7 +58,7 @@ def status(request):
     response = HttpResponse(str(val))
   else:
     # Status of all counters
-    val2 = val = IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY).count
+    val2 = IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY).count
     response = render(request, 'status.html', {
         'unsharded_counter' : unsharded_counter_value(),
         'sharded_counter' : val2
