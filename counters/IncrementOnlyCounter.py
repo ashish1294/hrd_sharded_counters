@@ -22,6 +22,11 @@ def validate_counter(prop, value):
     raise datastore_errors.BadValueError(prop + ' should be >= 1')
 
 class IncrementOnlyCounter(ndb.Model):
+
+  READ_WRITE = 0
+  MINIFYING = 1
+  RESET = 2
+
   num_shards = ndb.IntegerProperty(
       default=10,
       indexed=False,
@@ -34,6 +39,7 @@ class IncrementOnlyCounter(ndb.Model):
       verbose_name='Maximum Number of Shards')
   dynamic_growth = ndb.BooleanProperty(default=True, indexed=False)
   idempotency = ndb.BooleanProperty(default=False, indexed=False)
+  state = ndb.IntegerProperty(default=READ_WRITE)
 
   def __str__(self):
     return "(Num = " + str(self.num_shards) + ", Max = " + str(self.max_shards)\
