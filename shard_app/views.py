@@ -3,6 +3,7 @@ from django.http import HttpResponse
 from google.appengine.ext import ndb
 from google.appengine.api import memcache
 from counters import IncrementOnlyCounter as IOC
+from google.appengine.api import datastore_errors
 from models import IncrementTransaction
 import uuid
 
@@ -12,7 +13,7 @@ REQ_UNSHARDED = "0"
 REQ_SHARDED_INCREMENT = "1"
 REQ_SHARDED_GENERAL = "2"
 
-@ndb.transactional(xg=True)
+@ndb.transactional(xg=True, retries=1)
 def increment_unsharded_counter(delta, request_id):
   log_key = ndb.Key(IncrementTransaction, request_id)
   if log_key.get() is not None:
@@ -77,13 +78,22 @@ def increment_counter(request):
 
   if counter_type == REQ_UNSHARDED:
     # Increment Unsharded Counter
-    request_id = str(uuid.uuid4())
-    increment_unsharded_counter(delta, request_id)
-    response = HttpResponse("Request Successful")
+    try:
+      request_id = str(uuid.uuid4())
+      increment_unsharded_counter(delta, request_id)
+    except datastore_errors.TransactionFailedError:
+      response = HttpResponse("Request dropped", status=250)
+    else:
+      response = HttpResponse("Request Successful")
+
   elif counter_type == REQ_SHARDED_INCREMENT:
     # Increment Sharded Counter
-    increment_sharded_counter(delta)
-    response = HttpResponse("Request Successful")
+    try:
+      increment_sharded_counter(delta)
+    except datastore_errors.TransactionFailedError:
+      response = HttpResponse("Request Dropped", status=250)
+    else:
+      response = HttpResponse("Request Successful")
   else:
     response = HttpResponse("Invalid parameters" + str(counter_type))
 
