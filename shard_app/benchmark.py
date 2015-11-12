@@ -112,7 +112,7 @@ class GraphPlotter(object):
              label='Unsharded Counter')
     plt.legend()
     plt.set_xlabel("Request Rate / Min")
-    plt.set_ylabel('%% of requests succeeded')
+    plt.set_ylabel('% of requests succeeded')
 
     mpplt.show()
 
@@ -138,7 +138,7 @@ class GraphPlotter(object):
              label='Unsharded Counter')
     plt.legend()
     plt.set_xlabel("Request Rate / Min")
-    plt.set_ylabel('%% of requests succeeded')
+    plt.set_ylabel('% of requests succeeded')
     figure.savefig('success_rate.pdf', facecolor='white', edgecolor='black')
 
 GraphPlotter.plot_grpahs()
