@@ -29,6 +29,11 @@ class TestIncrementOnlyTest(unittest.TestCase):
     cls.counter_static = IncrementOnlyCounter(dynamic_growth=False,
                                               num_shards=10)
     cls.counter_static.put()
+    cls.counter_highly_sharded = IncrementOnlyCounter(dynamic_growth=True,
+                                                      max_shards=500,
+                                                      num_shards=200,
+                                                      idempotency=True)
+    cls.counter_highly_sharded.put()
 
   def test_increment(self):
 
@@ -146,6 +151,41 @@ class TestIncrementOnlyTest(unittest.TestCase):
     self.assertEqual(self.counter_normal.count, normal_val)
     self.assertEqual(self.counter_idempotent.count, idempotent_val)
     self.assertEqual(self.counter_static.count, static_val)
+
+  def test_highly_sharded_counters(self):
+    counter_val = 0
+
+    for _ in range(INCREMENT_STEPS * 15):
+      delta = random.randint(1, RAND_INCREMENT_MAX)
+      self.counter_highly_sharded.increment(delta)
+      counter_val += delta
+
+    self.assertEqual(self.counter_highly_sharded.count, counter_val)
+
+    # Minifying Shard with random updates in between
+    for _ in range(3):
+      self.counter_highly_sharded.minify_shards()
+      delta = random.randint(1, RAND_INCREMENT_MAX)
+      self.counter_highly_sharded.increment(delta)
+      counter_val += delta
+
+    self.assertEqual(self.counter_highly_sharded.count, counter_val)
+
+    # Totally minify the remaining
+    while self.counter_highly_sharded.num_shards > 1:
+      self.counter_highly_sharded.minify_shards()
+
+    self.assertEqual(self.counter_highly_sharded.count, counter_val)
+
+    # Expand the shard to full extent
+    while self.counter_highly_sharded.count < \
+                self.counter_highly_sharded.max_shards:
+      self.counter_highly_sharded.expand_shards()
+      delta = random.randint(1, RAND_INCREMENT_MAX)
+      self.counter_highly_sharded.increment(delta)
+      counter_val += delta
+
+    self.assertEqual(self.counter_highly_sharded.count, counter_val)
 
   @classmethod
   def tearDownClass(cls):
