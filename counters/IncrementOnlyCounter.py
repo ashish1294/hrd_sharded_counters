@@ -50,24 +50,24 @@ class IncrementOnlyCounter(ndb.Model):
     return self.__str__()
 
   def _format_shard_key(self, index):
-    """
+    '''
       Formats the Shard Key Template and returns the key-string for the shard at
       given index
       Args:
         index : Index of the shard whose key-string is required
-    """
+    '''
     return SHARD_KEY_TEMPLATE.format(self.key.id(), index)
 
   def _get_shard_key(self, index):
-    """
+    '''
       This function returns a particular shard key with the given index
       Args:
         index : Index of the shard whose's key is required
-    """
+    '''
     return ndb.Key(IncrementOnlyShard, self._format_shard_key(index))
 
   def _get_shard_keys(self, start=0, end=-1):
-    """
+    '''
       This function returns all the keys of each shard of this counter in a
       range [start, end). Defaults to all shards
       Args:
@@ -76,13 +76,13 @@ class IncrementOnlyCounter(ndb.Model):
               num_shards)
       Returns:
         A list of keys in the given range
-    """
+    '''
     if end == -1:
       end = self.num_shards
     return [self._get_shard_key(index) for index in range(start, end)]
 
   def _get_shards(self, start=0, end=-1):
-    """
+    '''
       This function returns all the shards associated with this counter within a
       given range [start, end). Defaults to all shards
       Args:
@@ -91,20 +91,20 @@ class IncrementOnlyCounter(ndb.Model):
               num_shards)
       Returns:
         A list of shards in the given range
-    """
+    '''
     if end == -1:
       end = self.num_shards
     return ndb.get_multi(self._get_shard_keys(start, end))
 
   def clear_logs(self, start=0, end=-1):
-    """
+    '''
       This functions deletes increment tx logs for all shards in the given range
       [start, end). Defaults to all shards
       Args:
         start : Start index of the stard range (defaults to 0)
         end : End  index (last index + 1) of the shard range (default to
               num_shards)
-    """
+    '''
     if end == -1:
       end = self.num_shards
     for i in range(start, end):
@@ -112,9 +112,9 @@ class IncrementOnlyCounter(ndb.Model):
 
   @property
   def count(self):
-    """
+    '''
       Retrieve the current counter value. Sums up values of all shards.
-    """
+    '''
     memcache_var = str(self.key.id())
     count = memcache.get(memcache_var)
     if count is None:
@@ -128,9 +128,9 @@ class IncrementOnlyCounter(ndb.Model):
 
   @property
   def value(self):
-    """
+    '''
       This function is just an alias for the count function
-    """
+    '''
     return self.count
 
   """
@@ -148,12 +148,12 @@ class IncrementOnlyCounter(ndb.Model):
 
   @ndb.transactional
   def expand_shards(self):
-    """
+    '''
       This function doubles the number of current shards associated with this
       counter - provided it doesn't grow more than the max_shards limit.
       Returns:
         It returns if there is further space for expansion
-    """
+    '''
     counter = self.key.get()
     counter.num_shards = min(counter.max_shards, counter.num_shards * 2)
     counter.put()
@@ -164,7 +164,7 @@ class IncrementOnlyCounter(ndb.Model):
 
   @ndb.transactional(xg=True)
   def minify_shards(self):
-    """
+    '''
       Function to minify shards. Since NDB allows 25 entity groups per
       transaction we can only minify 25 shards in a single Tx. Thus we either
       reduce the num shards by half or decrease it by 25. This is sensible
@@ -172,7 +172,7 @@ class IncrementOnlyCounter(ndb.Model):
 
       Note: Although this function is not totally idempotent, there is not much
       problem even if the function is executed multiple times
-    """
+    '''
     counter = self.key.get()
 
     value = counter.num_shards / 2
@@ -206,14 +206,14 @@ class IncrementOnlyCounter(ndb.Model):
 
   @ndb.transactional(xg=True)
   def _increment(self, delta):
-    """
+    '''
       This function increases a random shard by a given quantity. We randomly
       pick any shard counter and add the quantity to it.
       Note: This is not an idempotent function ! It may be incremented multiple
             times for the same request.
       Args:
         delta : Quantity to be incremented
-    """
+    '''
     # Re-fetching counter because it might be stale
     counter = self.key.get()
     index = random.randint(0, counter.num_shards - 1)
@@ -227,7 +227,7 @@ class IncrementOnlyCounter(ndb.Model):
 
   @ndb.transactional(xg=True)
   def _increment_idempotent(self, delta, request_id):
-    """
+    '''
       This function increases a random shard by a given quantity. We randomly
       pick any shard counter and add the quantity to it. This function is an
       internal function and should not be called from external application
@@ -236,7 +236,7 @@ class IncrementOnlyCounter(ndb.Model):
       Args:
         delta : Quantity to be incremented
         request_id : unique request id generated for this operation
-    """
+    '''
     log_key = ndb.Key(ShardIncrementTransaction, request_id)
     if log_key.get() is not None:
       return
@@ -246,12 +246,12 @@ class IncrementOnlyCounter(ndb.Model):
     ShardIncrementTransaction.get_or_insert(request_id)
 
   def increment(self, delta=1):
-    """
+    '''
       Function that increments a random shard. It generates a unique request id
       for each call using the uuid model
       Args:
         delta : Quantity by which a shard has to be incremented (positive)
-    """
+    '''
     if self.idempotency == False:
       # Call Normal Version
       self._increment(delta)
