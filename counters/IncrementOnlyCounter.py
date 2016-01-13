@@ -1,7 +1,8 @@
+import random
+import uuid
 from google.appengine.ext import ndb
 from google.appengine.api import memcache
 from google.appengine.api import datastore_errors
-import random, uuid
 
 SHARD_KEY_TEMPLATE = 'increment_only_shard-{0}-{1}'
 MAX_ENTITIES_PER_TRANSACTION = 25
@@ -252,7 +253,7 @@ class IncrementOnlyCounter(ndb.Model):
       Args:
         delta : Quantity by which a shard has to be incremented (positive)
     '''
-    if self.idempotency == False:
+    if self.idempotency is False:
       # Call Normal Version
       self._increment(delta)
       return

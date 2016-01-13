@@ -1,11 +1,11 @@
+import uuid
 from django.shortcuts import render
 from django.http import HttpResponse
 from google.appengine.ext import ndb
 from google.appengine.api import memcache
-from counters import IncrementOnlyCounter as IOC
 from google.appengine.api import datastore_errors
+from counters import IncrementOnlyCounter as IOC
 from models import IncrementTransaction
-import uuid
 
 UNSHARDED_COUNTER_KEY = 'unsharded_counter'
 SHARDED_COUNTER_KEY = 'sharded_counter'

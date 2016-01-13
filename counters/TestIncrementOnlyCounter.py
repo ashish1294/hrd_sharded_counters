@@ -1,8 +1,9 @@
+import unittest
+import random
 from google.appengine.ext import testbed
 from google.appengine.datastore import datastore_stub_util
 from google.appengine.ext import ndb
 from IncrementOnlyCounter import IncrementOnlyCounter
-import unittest, random
 
 # Increment Test Constants
 INCREMENT_STEPS = 10
