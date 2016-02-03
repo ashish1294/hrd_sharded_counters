@@ -1,0 +1,169 @@
+from google.appengine.ext import ndb
+from google.appengine.api import memcache
+from google.appengine.api import datastore_errors
+
+'''
+  Important things to remember :
+  1. Range should be [-2**63, 2**63]
+'''
+
+MEMCACHE_NAME_TEMPLATE = '{0}-memcache-counter'
+MIDDLE_VALUE = 2 ** 63
+LOCK_VAR_TEMPLATE = '{0}-memlock'
+
+class MemcacheCounter(ndb.model):
+
+  value = ndb.IntegerProperty(default=0)
+
+  class CounterNameException(Exception):
+    pass
+
+  @classmethod
+  def _get_memcache_id(cls, counter_name):
+    '''
+      This function returns the string id of the counter in memcache
+      Args:
+        counter_name : Name of the Counter
+      Returns: The string id of the memcache value
+    '''
+    return MEMCACHE_NAME_TEMPLATE.format(counter_name)
+
+  @classmethod
+  def _get_multi_memcache_ids(cls, counter_names):
+    '''
+      This function computes a list of counter ids given a list of counter name
+      Args:
+        counter_names : List of counter names whose ids have to fetched
+      Returns: A list of string ids of the request names
+      These ids may or may not exist in memcache
+    '''
+    return [cls._get_memcache_id(name) for name in names]
+
+  @classmethod
+  def _lock_counter(cls, counter_name, duration):
+    lock_var = LOCK_VAR_TEMPLATE.format(counter_name)
+    return memcache.add(lock_var, None, duration)
+
+  @classmethod
+  @ndb.transactional
+  def _update_datastore(cls, counter_id, value):
+    '''
+      This function changes the counter value in datastore transactionally.
+      Args :
+        counter_id : id of datastore counter
+        value : The new value to be persisted
+    '''
+    # Fetching Counter from Datastore
+    counter = cls.get_or_insert(counter_id)
+    counter.value = value
+    counter.save()
+    return counter.value
+
+  @classmethod
+  @ndb.transactional
+  def _reset_datastore(cls, counter_id):
+    '''
+      This function resets the datastore. It simply deletes
+      Args:
+        counter_id : id of the datastore counter
+    '''
+    counter = ndb.Key(cls, counter_id).get()
+    if counter is not None:
+      counter.delete()
+
+  @classmethod
+  def increment(cls, name, delta, persist_delay=10):
+    '''
+      This function increments the counter in memcache.
+      Args:
+        delta : Amount to be incremented
+        interval : seconds to wait before updating Datastore
+    '''
+    counter_id = cls._get_memcache_id(name)
+
+    if delta >= 0:
+      val = memcache.incr(counter_id, delta, initial_value=MIDDLE_VALUE)
+    else:
+      val = memcache.decr(counter_id, -delta, initial_value=MIDDLE_VALUE)
+
+    if cls._lock_counter(name, persist_delay):
+      # It's time to persist the value in datastore
+      persist_value = val - MIDDLE_VALUE
+      try:
+        cls._update_datastore(counter_id, persist_value)
+      except datastore_errors.TransactionFailedError:
+        # Just avoid this transaction failure and try again in next iteration
+        pass
+
+  @classmethod
+  def decrement(cls, name, delta, persist_delay=10):
+    '''
+      Just a useful alias for increment
+    '''
+    cls.increment(name, -delta, persist_delay)
+
+  @classmethod
+  def get(cls, name):
+    counter_id = cls._get_memcache_id(name)
+    val = memcache.get(counter_id)
+    if val is None:
+      # Fetch from Datastore
+      counter = cls.get_or_insert(counter_id)
+      # Put the value to Memcache
+      memcache.add(counter_id, counter.value + MIDDLE_VALUE)
+      return counter.value
+    else:
+      return int(val) - MIDDLE_VALUE
+
+  @classmethod
+  def get_multi(cls, names):
+    '''
+      This function gets the value of multiple counters at once.
+    '''
+    counter_id_list = cls._get_multi_memcache_ids(names)
+    values = memcache.get_multi(counter_id_list)
+    ret_values = {}
+    for i in range(len(names)):
+      if counter_id_list[i] not in values:
+        ret_values[names[i]] = 0
+      else:
+        ret_values[names[i]] = values[counter_id_list[i]] - MIDDLE_VALUE
+
+  @classmethod
+  def reset(cls, name):
+    '''
+      This function resets the counter to 0. This function also resets datastore
+      Args:
+        name : Name of the counter
+      Returns:
+        True if successful, False if not
+        If it returns False, it may still be successful id reset.
+        Whenever it returns true, it is successful
+    '''
+    counter_id = cls._get_memcache_id(name)
+    cls._reset_datastore(counter_id)
+
+    # Using CAS to avoid race condition
+    client = memcache.Client()
+    return client.cas(counter_id, MIDDLE_VALUE)
+
+  @classmethod
+  def set(cls, name, value=0):
+    '''
+      This function sets the counter value to a given value. Resets datastore.
+      Args:
+        name : Name of the counter
+      Returns:
+        True if successful, False if not
+        If it returns False, it may be successful
+    '''
+    counter_id = cls._get_memcache_id(name)
+    cls._update_datastore(counter_id, value)
+
+    # Using CAS to avoid race condition
+    client = memcache.Client()
+    return client.cas(counter_id, MIDDLE_VALUE + value)
+
+  # Useful Aliases
+  value = count = get
+  reinitialize = reset
