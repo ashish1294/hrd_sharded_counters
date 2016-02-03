@@ -32,3 +32,6 @@ skip_files:
 - LICENSE
 - README.md
 - ^(.*/)?.*\.csv$
+- ^shard_app/.*\.pdf$
+- ^shard_app/load_test/.*$
+-
