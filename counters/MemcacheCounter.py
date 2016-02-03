@@ -11,7 +11,7 @@ MEMCACHE_NAME_TEMPLATE = '{0}-memcache-counter'
 MIDDLE_VALUE = 2 ** 63
 LOCK_VAR_TEMPLATE = '{0}-memlock'
 
-class MemcacheCounter(ndb.model):
+class MemcacheCounter(ndb.Model):
 
   value = ndb.IntegerProperty(default=0)
 
@@ -37,7 +37,7 @@ class MemcacheCounter(ndb.model):
       Returns: A list of string ids of the request names
       These ids may or may not exist in memcache
     '''
-    return [cls._get_memcache_id(name) for name in names]
+    return [cls._get_memcache_id(name) for name in counter_names]
 
   @classmethod
   def _lock_counter(cls, counter_name, duration):
@@ -123,11 +123,12 @@ class MemcacheCounter(ndb.model):
     counter_id_list = cls._get_multi_memcache_ids(names)
     values = memcache.get_multi(counter_id_list)
     ret_values = {}
-    for i in range(len(names)):
-      if counter_id_list[i] not in values:
+    for i, counter_id in enumerate(counter_id_list):
+      if counter_id not in values:
         ret_values[names[i]] = 0
       else:
-        ret_values[names[i]] = values[counter_id_list[i]] - MIDDLE_VALUE
+        ret_values[names[i]] = values[counter_id] - MIDDLE_VALUE
+    return ret_values
 
   @classmethod
   def reset(cls, name):
