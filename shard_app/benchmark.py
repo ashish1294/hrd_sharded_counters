@@ -46,7 +46,8 @@ class GraphPlotter(object):
     data = []
     for i in minutes:
       number_of_requests = len(i)
-      if number_of_requests == 0:
+      # Cut off for being included
+      if number_of_requests < 20:
         continue
 
       succeded_requests = 0
@@ -106,9 +107,9 @@ class GraphPlotter(object):
 
     plt = figure.add_subplot(2, 1, 2)
     plt.set_title("Transaction Success Rate")
-    plt.plot(unsharded_test[0], unsharded_test[1], '-', dashes=[4, 4],
+    plt.plot(sharded_test[0], sharded_test[1], '-', dashes=[4, 4],
              color='green', label='Sharded Counter')
-    plt.plot(sharded_test[0], sharded_test[1], color='red',
+    plt.plot(unsharded_test[0], unsharded_test[1], color='red',
              label='Unsharded Counter')
     plt.legend()
     plt.set_xlabel("Request Rate / Min")
