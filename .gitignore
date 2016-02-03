@@ -1,5 +1,17 @@
+# Ignore Class Files
 *.pyc
+*.pyo
+
+# Temporary Files
 *~
+*.DS_Store
+
 django/*
 .tox/*
 *.csv
+
+# Sublime Text Configs
+*.sublime-*
+
+# Result Pdfs
+shard_app/*.pdf

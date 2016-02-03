@@ -279,3 +279,8 @@ class IncrementOnlyCounter(ndb.Model):
     if not success:
       raise datastore_errors.TransactionFailedError("Unable to increment \
         counter even after max expansion")
+
+  # Creating useful aliases for popular function
+  incr = increment
+  minify = minify_shards
+  expand = expand_shards
