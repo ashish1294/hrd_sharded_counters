@@ -56,7 +56,7 @@ class MemcacheCounter(ndb.Model):
     # Fetching Counter from Datastore
     counter = cls.get_or_insert(counter_id)
     counter.value = value
-    counter.save()
+    counter.put()
     return counter.value
 
   @classmethod
@@ -72,7 +72,26 @@ class MemcacheCounter(ndb.Model):
       counter.delete()
 
   @classmethod
-  def increment(cls, name, delta, persist_delay=10):
+  def put_to_datastore(cls, name):
+    '''
+      This function explicitly updates value in datastore if the counter exist
+      Args:
+        name : The name of the counter
+      Returns: Updated value in operation was successful, None otherwise
+    '''
+    counter_id = cls._get_memcache_id(name)
+    val = memcache.get(counter_id)
+    if val is not None:
+      persist_value = val - MIDDLE_VALUE
+      try:
+        cls._update_datastore(counter_id, persist_value)
+      except datastore_errors.TransactionFailedError:
+        pass
+      else:
+        return persist_value
+
+  @classmethod
+  def increment(cls, name, delta=1, persist_delay=10):
     '''
       This function increments the counter in memcache.
       Args:
@@ -94,38 +113,58 @@ class MemcacheCounter(ndb.Model):
       except datastore_errors.TransactionFailedError:
         # Just avoid this transaction failure and try again in next iteration
         pass
+    return val
 
   @classmethod
-  def decrement(cls, name, delta, persist_delay=10):
+  def decrement(cls, name, delta=1, persist_delay=10):
     '''
       Just a useful alias for increment
     '''
-    cls.increment(name, -delta, persist_delay)
+    return cls.increment(name, -delta, persist_delay)
 
   @classmethod
-  def get(cls, name):
+  def get(cls, name, initial_value=0):
+    '''
+      This function will fetch the counter value. It will create a new counter
+      if it doesn't exist.
+      Args:
+        name : Name of the counter to fetch
+        initial_value : value to be used if new counter is created. Defaults to
+        0
+      Returns : The value of the counter
+    '''
     counter_id = cls._get_memcache_id(name)
     val = memcache.get(counter_id)
     if val is None:
       # Fetch from Datastore
-      counter = cls.get_or_insert(counter_id)
+      counter = cls.get_or_insert(counter_id, value=initial_value)
       # Put the value to Memcache
       memcache.add(counter_id, counter.value + MIDDLE_VALUE)
       return counter.value
     else:
-      return int(val) - MIDDLE_VALUE
+      return val - MIDDLE_VALUE
 
   @classmethod
-  def get_multi(cls, names):
+  def get_multi(cls, names, initial_value=0):
     '''
-      This function gets the value of multiple counters at once.
+      This function gets the value of multiple counters at once. It creates new
+      counters if it doesn't already exist
+      Args:
+        names : list of names of counter values to be fetched
+        initial_value : value to be used if new counter is created. Defaults to
+        0
+      Returns : A dictionary with all the name-value mapping
     '''
     counter_id_list = cls._get_multi_memcache_ids(names)
     values = memcache.get_multi(counter_id_list)
     ret_values = {}
     for i, counter_id in enumerate(counter_id_list):
       if counter_id not in values:
-        ret_values[names[i]] = 0
+        # Doesn't exist in Memcache. Fetch from Datastore
+        counter = cls.get_or_insert(counter_id, value=initial_value)
+        # Put in Memcache
+        memcache.add(counter_id, counter.value + MIDDLE_VALUE)
+        ret_values[names[i]] = counter.value
       else:
         ret_values[names[i]] = values[counter_id] - MIDDLE_VALUE
     return ret_values
@@ -164,6 +203,49 @@ class MemcacheCounter(ndb.Model):
     # Using CAS to avoid race condition
     client = memcache.Client()
     return client.cas(counter_id, MIDDLE_VALUE + value)
+
+  @classmethod
+  def exist(cls, name):
+    '''
+      This is a utility function to check if the counter with given name exist
+      Args:
+        name : Name of the counter
+      Returns : True if counter exist. False otherwise
+    '''
+    counter_id = cls._get_memcache_id(name)
+    val = memcache.get(counter_id)
+    if val is not None:
+      return True
+    else:
+      counter = ndb.Key(cls, counter_id).get()
+    if counter is not None:
+      # Put value into Memcache
+      memcache.add(counter_id, counter.value + MIDDLE_VALUE)
+      return True
+    else:
+      return False
+
+  @classmethod
+  def delete(cls, name):
+    '''
+      This function deletes the counter both from datastore and memcache
+      Args:
+        name : Name of the counter
+    '''
+    counter_id = cls._get_memcache_id(name)
+    ndb.Key(cls, counter_id).delete()
+    memcache.delete(counter_id)
+
+  @classmethod
+  def delete_multi(cls, names):
+    '''
+      This function deletes multiple counters at once
+      Args:
+        name : list of counter names to be deleted
+    '''
+    counter_id_list = cls._get_multi_memcache_ids(names)
+    ndb.delete_multi([ndb.Key(cls, cid) for cid in counter_id_list])
+    memcache.delete_multi(counter_id_list)
 
   # Useful Aliases
   value = count = get
