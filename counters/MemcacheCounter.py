@@ -13,10 +13,16 @@ LOCK_VAR_TEMPLATE = '{0}-memlock'
 
 class MemcacheCounter(ndb.Model):
 
-  value = ndb.IntegerProperty(default=0)
+  data = ndb.IntegerProperty(default=0, indexed=False)
 
-  class CounterNameException(Exception):
-    pass
+  def __str__(self):
+    if self.key is None:
+      return "In-memory Counter Value = %d" % self.data
+    else:
+      return "Name = %s, Value = %s" % (self.key.id(), self.data)
+
+  def __repr__(self):
+    return self.__str__()
 
   @classmethod
   def _get_memcache_id(cls, counter_name):
@@ -55,9 +61,9 @@ class MemcacheCounter(ndb.Model):
     '''
     # Fetching Counter from Datastore
     counter = cls.get_or_insert(counter_id)
-    counter.value = value
+    counter.data = value
     counter.put()
-    return counter.value
+    return counter.data
 
   @classmethod
   @ndb.transactional
@@ -67,9 +73,7 @@ class MemcacheCounter(ndb.Model):
       Args:
         counter_id : id of the datastore counter
     '''
-    counter = ndb.Key(cls, counter_id).get()
-    if counter is not None:
-      counter.delete()
+    ndb.Key(cls, counter_id).delete()
 
   @classmethod
   def put_to_datastore(cls, name):
@@ -105,15 +109,15 @@ class MemcacheCounter(ndb.Model):
     else:
       val = memcache.decr(counter_id, -delta, initial_value=MIDDLE_VALUE)
 
+    persist_value = val - MIDDLE_VALUE
     if cls._lock_counter(name, persist_delay):
       # It's time to persist the value in datastore
-      persist_value = val - MIDDLE_VALUE
       try:
         cls._update_datastore(counter_id, persist_value)
       except datastore_errors.TransactionFailedError:
         # Just avoid this transaction failure and try again in next iteration
         pass
-    return val
+    return persist_value
 
   @classmethod
   def decrement(cls, name, delta=1, persist_delay=10):
@@ -137,10 +141,10 @@ class MemcacheCounter(ndb.Model):
     val = memcache.get(counter_id)
     if val is None:
       # Fetch from Datastore
-      counter = cls.get_or_insert(counter_id, value=initial_value)
+      counter = cls.get_or_insert(counter_id, data=initial_value)
       # Put the value to Memcache
-      memcache.add(counter_id, counter.value + MIDDLE_VALUE)
-      return counter.value
+      memcache.add(counter_id, counter.data + MIDDLE_VALUE)
+      return counter.data
     else:
       return val - MIDDLE_VALUE
 
@@ -161,10 +165,10 @@ class MemcacheCounter(ndb.Model):
     for i, counter_id in enumerate(counter_id_list):
       if counter_id not in values:
         # Doesn't exist in Memcache. Fetch from Datastore
-        counter = cls.get_or_insert(counter_id, value=initial_value)
+        counter = cls.get_or_insert(counter_id, data=initial_value)
         # Put in Memcache
-        memcache.add(counter_id, counter.value + MIDDLE_VALUE)
-        ret_values[names[i]] = counter.value
+        memcache.add(counter_id, counter.data + MIDDLE_VALUE)
+        ret_values[names[i]] = counter.data
       else:
         ret_values[names[i]] = values[counter_id] - MIDDLE_VALUE
     return ret_values
@@ -185,6 +189,7 @@ class MemcacheCounter(ndb.Model):
 
     # Using CAS to avoid race condition
     client = memcache.Client()
+    client.get(counter_id, for_cas=True)
     return client.cas(counter_id, MIDDLE_VALUE)
 
   @classmethod
@@ -202,6 +207,7 @@ class MemcacheCounter(ndb.Model):
 
     # Using CAS to avoid race condition
     client = memcache.Client()
+    client.get(counter_id, for_cas=True)
     return client.cas(counter_id, MIDDLE_VALUE + value)
 
   @classmethod
@@ -220,7 +226,7 @@ class MemcacheCounter(ndb.Model):
       counter = ndb.Key(cls, counter_id).get()
     if counter is not None:
       # Put value into Memcache
-      memcache.add(counter_id, counter.value + MIDDLE_VALUE)
+      memcache.add(counter_id, counter.data + MIDDLE_VALUE)
       return True
     else:
       return False
@@ -250,3 +256,5 @@ class MemcacheCounter(ndb.Model):
   # Useful Aliases
   value = count = get
   reinitialize = reset
+  incr = offset = increment
+  decr = decrement

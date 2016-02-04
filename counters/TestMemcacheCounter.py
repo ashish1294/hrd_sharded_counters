@@ -37,11 +37,10 @@ class TestMemcacheCounter(unittest.TestCase):
   def test_increment_decrement(self):
 
     expected_val = MC.get(self.counter_name) + INCREMENT_STEPS
-    new_val = MC.increment(self.counter_name, INCREMENT_STEPS)
 
     for _ in range(INCREMENT_STEPS):
       MC.increment(self.counter_name)
-    self.assertEqual(expected_val, new_val)
+    self.assertEqual(expected_val, MC.get(self.counter_name))
 
     for _ in range(INCREMENT_STEPS):
       MC.decrement(self.counter_name)
@@ -65,7 +64,7 @@ class TestMemcacheCounter(unittest.TestCase):
       MC.increment(self.counter_name, val)
       expected_val += val
       val = random.randint(-RAND_INCREMENT_MAX, RAND_INCREMENT_MAX)
-      MC.decrement(-RAND_INCREMENT_MAX, RAND_INCREMENT_MAX)
+      MC.decrement(self.counter_name, val)
       expected_val -= val
     self.assertEqual(expected_val, MC.get(self.counter_name))
 
