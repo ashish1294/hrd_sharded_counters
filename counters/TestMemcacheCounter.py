@@ -133,3 +133,7 @@ class TestMemcacheCounter(unittest.TestCase):
 
     memcache.flush_all()
     self.assertEqual(expected_val, MC.get(self.counter_name))
+
+  @classmethod
+  def tearDownClass(cls):
+    cls.testbed.deactivate()
