@@ -21,3 +21,4 @@ TO DO
 * Add Async function wherever possible in Memcache Counter
 * Use Multi Version in Increment Only Counter Wherever possible
 * Counter State
+* Implement Multi get / delete / update function in IncrementOnlyCounters
