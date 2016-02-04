@@ -15,3 +15,6 @@ django/*
 
 # Result Pdfs
 shard_app/*.pdf
+
+# Ignoring Coverage
+.coverage
