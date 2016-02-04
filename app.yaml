@@ -34,4 +34,3 @@ skip_files:
 - ^(.*/)?.*\.csv$
 - ^shard_app/.*\.pdf$
 - ^shard_app/load_test/.*$
--
