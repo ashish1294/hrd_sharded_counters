@@ -4,9 +4,12 @@ python:
 install:
   - pip install tox
   - pip install -t django Django==1.8
+  - pip install coveralls
 script:
   - tox
 notifications:
   irc: "chat.freenode.net#bug-assassins"
   on_success: always
   on_failure: always
+after_success:
+  - coveralls
