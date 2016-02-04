@@ -5,13 +5,15 @@ from google.appengine.ext import ndb
 from google.appengine.api import memcache
 from google.appengine.api import datastore_errors
 from counters import IncrementOnlyCounter as IOC
+from counters.MemcacheCounter import MemcacheCounter as MC
 from models import IncrementTransaction
 
 UNSHARDED_COUNTER_KEY = 'unsharded_counter'
 SHARDED_COUNTER_KEY = 'sharded_counter'
+MEMCACHE_COUNTER_KEY = 'memcache_counter'
 REQ_UNSHARDED = "0"
 REQ_SHARDED_INCREMENT = "1"
-REQ_SHARDED_GENERAL = "2"
+REQ_MEMCACHE = "2"
 
 @ndb.transactional(xg=True, retries=1)
 def increment_unsharded_counter(delta, request_id):
@@ -57,12 +59,15 @@ def status(request):
   elif counter_type == REQ_SHARDED_INCREMENT:
     val = IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY).count
     response = HttpResponse(str(val))
+  elif counter_type == REQ_MEMCACHE:
+    response = HttpResponse(str())
   else:
     # Status of all counters
     val2 = IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY).count
     response = render(request, 'status.html', {
         'unsharded_counter' : unsharded_counter_value(),
-        'sharded_counter' : val2
+        'sharded_counter' : val2,
+        'memcache_counter' : MC.get(MEMCACHE_COUNTER_KEY),
     })
   return response
 
@@ -90,6 +95,13 @@ def increment_counter(request):
     # Increment Sharded Counter
     try:
       increment_sharded_counter(delta)
+    except datastore_errors.TransactionFailedError:
+      response = HttpResponse("Request Dropped", status=250)
+    else:
+      response = HttpResponse("Request Successful")
+  elif counter_type == REQ_MEMCACHE:
+    try:
+      MC.incr(MEMCACHE_COUNTER_KEY, delta)
     except datastore_errors.TransactionFailedError:
       response = HttpResponse("Request Dropped", status=250)
     else:

@@ -11,11 +11,16 @@
 			<h1>Sharded Increment Only Counter</h1>
 			<h2>{{sharded_counter}}</h2>
 		</div>
+		<div id="memcache_counter">
+			<h1>Memcache Counters</h1>
+			<h2>{{memcache_counter}}</h2>
+		</div>
 		<div>
 			<form action="/increment" method="GET">
 				<select name="type">
 					<option value="0">Unsharded Counter</option>
 					<option value="1">Sharded Increment Counter</option>
+					<option value="2">Memcache Counter</option>
 				</select>
 				<input type="number" min="0" name="delta">
 				<input type="submit" value="Submit"/>
