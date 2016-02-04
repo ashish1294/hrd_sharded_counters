@@ -75,6 +75,13 @@ class TestMemcacheCounter(unittest.TestCase):
       expected_val[counter_name] = 1
       MC.increment(counter_name)
 
+    # Fetching multiple counters at the same time and checking values
+    values = MC.get_multi(self.counter_name_list)
+    self.assertDictEqual(expected_val, values)
+
+    # Flushing all but first counter
+    for counter_name in self.counter_name_list[1:]:
+      MC.put_to_datastore(counter_name, flush=True)
     values = MC.get_multi(self.counter_name_list)
     self.assertDictEqual(expected_val, values)
 
@@ -89,14 +96,24 @@ class TestMemcacheCounter(unittest.TestCase):
 
   def test_set_reset(self):
 
+    # Setting the counter to a particular value
     expected_val = 1024
     MC.set(self.counter_name, expected_val)
     self.assertEqual(expected_val, MC.get(self.counter_name))
 
+    # Reseting the counter to a particular value
     MC.reset(self.counter_name)
     self.assertEqual(0, MC.get(self.counter_name))
 
-  def check_memcache_flush(self):
+    # Deleting the counter from memcache and checking it's existence
+    MC.put_to_datastore(self.counter_name, flush=True)
+    self.assertTrue(MC.exist(self.counter_name))
+
+    # Now permanently deleting the counter and checking it's existence
+    MC.delete(self.counter_name)
+    self.assertFalse(MC.exist(self.counter_name))
+
+  def test_memcache_flush(self):
 
     # Attempt to raise error by flushing memcache without persisting
     expected_val = MC.get(self.counter_name) + (INCREMENT_STEPS * 2)

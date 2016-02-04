@@ -76,11 +76,13 @@ class MemcacheCounter(ndb.Model):
     ndb.Key(cls, counter_id).delete()
 
   @classmethod
-  def put_to_datastore(cls, name):
+  def put_to_datastore(cls, name, flush=False):
     '''
       This function explicitly updates value in datastore if the counter exist
       Args:
         name : The name of the counter
+        flush : Optional argument that determines if the counter should be
+        deleted from memcache after saving to datastore. Defaults to False
       Returns: Updated value in operation was successful, None otherwise
     '''
     counter_id = cls._get_memcache_id(name)
@@ -92,6 +94,8 @@ class MemcacheCounter(ndb.Model):
       except datastore_errors.TransactionFailedError:
         pass
       else:
+        if flush:
+          memcache.delete(counter_id)
         return persist_value
 
   @classmethod
@@ -157,7 +161,7 @@ class MemcacheCounter(ndb.Model):
         names : list of names of counter values to be fetched
         initial_value : value to be used if new counter is created. Defaults to
         0
-      Returns : A dictionary with all the name-value mapping
+      Returns : A dictionary with all the name-value mapping.
     '''
     counter_id_list = cls._get_multi_memcache_ids(names)
     values = memcache.get_multi(counter_id_list)
