@@ -1,6 +1,9 @@
 # hrd_sharded_counters
 
-[![Build Status](https://magnum.travis-ci.com/ashish1294/hrd_sharded_counters.svg?token=2Nn4SpQTSFpAmqNW7tqr&branch=master)](https://magnum.travis-ci.com/ashish1294/hrd_sharded_counters)
+[![Build Status](https://travis-ci.com/ashish1294/hrd_sharded_counters.svg?token=2Nn4SpQTSFpAmqNW7tqr&branch=master)](https://travis-ci.com/ashish1294/hrd_sharded_counters)
+[![Coverage Status](https://coveralls.io/repos/github/ashish1294/hrd_sharded_counters/badge.svg?branch=master)](https://coveralls.io/github/ashish1294/hrd_sharded_counters?branch=master)
+[![Stories in Ready](https://badge.waffle.io/ashish1294/hrd_sharded_counters.svg?label=ready&title=Ready)](http://waffle.io/ashish1294/hrd_sharded_counters)
+
 
 Sharded Counter Implementation using NDB for Google Cloud Datastore
 
