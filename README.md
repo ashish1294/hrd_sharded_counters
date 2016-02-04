@@ -15,3 +15,9 @@ before deploying. To do this run :
 
 This will create a folder name django in the root directory with latest Django
 runtime.
+
+TO DO
+=====
+* Add Async function wherever possible in Memcache Counter
+* Use Multi Version in Increment Only Counter Wherever possible
+* Counter State
