@@ -53,6 +53,9 @@ class TestIncrementOnlyTest(unittest.TestCase):
     self.assertEqual(self.counter_idempotent.count, idempotent_val)
     self.assertEqual(self.counter_static.count, static_val)
 
+    #Testing Alias
+    self.assertEqual(self.counter_static.value, static_val)
+
     # Testing the non-unit delta increment functionality
     for dummy in range(INCREMENT_STEPS):
       self.counter_normal.increment(INCREMENT_VALUE)
@@ -187,6 +190,20 @@ class TestIncrementOnlyTest(unittest.TestCase):
       counter_val += delta
 
     self.assertEqual(self.counter_highly_sharded.count, counter_val)
+
+  def test_tx_logs(self):
+    self.assertEqual(len(self.counter_normal.get_all_tx_logs()), 0)
+    self.assertEqual(len(self.counter_static.get_all_tx_logs()), 0)
+
+    self.counter_idempotent.increment()
+    self.counter_highly_sharded.increment()
+    self.assertGreater(len(self.counter_idempotent.get_all_tx_logs()), 0)
+    self.assertGreater(len(self.counter_highly_sharded.get_all_tx_logs()), 0)
+
+    self.counter_idempotent.clear_logs()
+    self.counter_highly_sharded.clear_logs()
+    self.assertEqual(len(self.counter_idempotent.get_all_tx_logs()), 0)
+    self.assertEqual(len(self.counter_highly_sharded.get_all_tx_logs()), 0)
 
   @classmethod
   def tearDownClass(cls):

@@ -11,9 +11,14 @@ class IncrementOnlyShard(ndb.Model):
   count = ndb.IntegerProperty(default=0, indexed=False)
 
   def remove_tx_log(self):
-    log_list = ShardIncrementTransaction.query(shard_key=self.key())
-    for log in log_list.iter():
-      log.delete()
+    log_list = ShardIncrementTransaction.query(
+        ShardIncrementTransaction.shard_key == self.key).fetch()
+    for log in log_list:
+      log.key.delete()
+
+  def get_tx_logs(self):
+    return ShardIncrementTransaction.query(
+        ShardIncrementTransaction.shard_key == self.key).fetch()
 
 class ShardIncrementTransaction(ndb.Model):
   shard_key = ndb.KeyProperty(kind=IncrementOnlyShard)
@@ -105,10 +110,27 @@ class IncrementOnlyCounter(ndb.Model):
         end : End  index (last index + 1) of the shard range (default to
               num_shards)
     '''
-    if end == -1:
-      end = self.num_shards
-    for i in range(start, end):
-      self._get_shard_key(i).get().remove_tx_log()
+    shards = self._get_shards(start, end)
+    for shard in shards:
+      if shard is not None:
+        shard.remove_tx_log()
+
+  def get_all_tx_logs(self, start=0, end=-1):
+    '''
+      This function fetches all the logs from the shards in the given range
+      [start, end). Defaults to all shards
+      Args:
+        start : Start index of the shard range (defaults to 0)
+        end : End Index (last index + 1) of the shard range (defaults to
+              num_shards)
+      Returns : A list of all transactions
+    '''
+    log_list = []
+    shards = self._get_shards(start, end)
+    for shard in shards:
+      if shard is not None:
+        log_list += shard.get_tx_logs()
+    return log_list
 
   @property
   def count(self):
@@ -213,6 +235,8 @@ class IncrementOnlyCounter(ndb.Model):
             times for the same request.
       Args:
         delta : Quantity to be incremented
+
+      Returns: the shard_key string that was incremented
     '''
     # Re-fetching counter because it might be stale
     counter = self.key.get()
@@ -224,6 +248,7 @@ class IncrementOnlyCounter(ndb.Model):
 
     # Incrementing the counter val in Memcache
     memcache.incr(str(counter.key.id()), delta=delta)
+    return shard_key
 
   @ndb.transactional(xg=True)
   def _increment_idempotent(self, delta, request_id):
@@ -240,10 +265,12 @@ class IncrementOnlyCounter(ndb.Model):
     log_key = ndb.Key(ShardIncrementTransaction, request_id)
     if log_key.get() is not None:
       return
-    self._increment(delta)
+    shard_key_str = self._increment(delta)
 
     # Inserting Log for this shard
-    ShardIncrementTransaction.get_or_insert(request_id)
+    trx = ShardIncrementTransaction.get_or_insert(request_id)
+    trx.shard_key = ndb.Key(IncrementOnlyShard, shard_key_str)
+    trx.put()
 
   def increment(self, delta=1):
     '''
