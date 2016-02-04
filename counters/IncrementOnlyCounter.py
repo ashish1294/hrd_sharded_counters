@@ -43,9 +43,8 @@ class IncrementOnlyCounter(ndb.Model):
   state = ndb.IntegerProperty(default=READ_WRITE)
 
   def __str__(self):
-    return "(Num = " + str(self.num_shards) + ", Max = " + str(self.max_shards)\
-      + ", Dynamic = " + str(self.dynamic_growth) + " Idempotency = " \
-      + str(self.idempotency) + ")"
+    return "(Num = %d, Max = %d, Dynamic = %r, Idempotency = %r)" % (
+        self.num_shards, self.max_shards, self.dynamic_growth, self.idempotency)
 
   def __repr__(self):
     return self.__str__()
