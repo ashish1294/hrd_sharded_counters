@@ -25,7 +25,8 @@ class ShardIncrementTransaction(ndb.Model):
 
 def validate_counter(prop, value):
   if value < 1:
-    raise datastore_errors.BadValueError(prop + ' should be >= 1')
+    raise datastore_errors.BadValueError(
+        prop.__class__.__name__ + ' should be >= 1')
 
 class IncrementOnlyCounter(ndb.Model):
 
