@@ -2,6 +2,7 @@ import unittest
 import random
 from google.appengine.ext import testbed
 from google.appengine.datastore import datastore_stub_util
+from google.appengine.api import datastore_errors
 from google.appengine.ext import ndb
 from IncrementOnlyCounter import IncrementOnlyCounter
 
@@ -35,6 +36,12 @@ class TestIncrementOnlyTest(unittest.TestCase):
                                                       num_shards=200,
                                                       idempotency=True)
     cls.counter_highly_sharded.put()
+
+  def test_invalid_counter(self):
+    with self.assertRaises(datastore_errors.BadValueError):
+      IncrementOnlyCounter(idempotency=False, num_shards=0, max_shards=2)
+    with self.assertRaises(datastore_errors.BadValueError):
+      IncrementOnlyCounter(num_shards=2, max_shards=0)
 
   def test_increment(self):
 
@@ -182,7 +189,7 @@ class TestIncrementOnlyTest(unittest.TestCase):
     self.assertEqual(self.counter_highly_sharded.count, counter_val)
 
     # Expand the shard to full extent
-    while self.counter_highly_sharded.count < \
+    while self.counter_highly_sharded.num_shards < \
                 self.counter_highly_sharded.max_shards:
       self.counter_highly_sharded.expand_shards()
       delta = random.randint(1, RAND_INCREMENT_MAX)
@@ -208,6 +215,3 @@ class TestIncrementOnlyTest(unittest.TestCase):
   @classmethod
   def tearDownClass(cls):
     cls.testbed.deactivate()
-
-if __name__ == "__main__":
-  unittest.main()

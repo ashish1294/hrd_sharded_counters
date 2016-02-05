@@ -97,8 +97,6 @@ class IncrementOnlyCounter(ndb.Model):
       Returns:
         A list of shards in the given range
     '''
-    if end == -1:
-      end = self.num_shards
     return ndb.get_multi(self._get_shard_keys(start, end))
 
   def clear_logs(self, start=0, end=-1):
