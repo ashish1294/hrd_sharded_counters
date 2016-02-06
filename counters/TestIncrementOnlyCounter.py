@@ -56,6 +56,7 @@ class TestIncrementOnlyTest(unittest.TestCase):
 
     self.assertIsNone(IOC.minify('dummy'))
     self.assertIsNone(IOC.increment('dummy'))
+    self.assertIsNone(IOC.get('dummy'))
 
   def test_increment(self):
 

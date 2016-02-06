@@ -153,19 +153,6 @@ class IncrementOnlyCounter(ndb.Model):
     '''
     return self.count
 
-  """
-    This function is under development
-
-  @ndb.transactional()
-  def reset_counter(self, shards=-1):
-    if end == -1:
-      end = self.num_shards
-    counter = self.key.get()
-    shards = min(shards, MAX_ENTITIES_PER_TRANSACTION - 1)
-    counter.num_shards = shards
-    counter.put()
-  """
-
   @ndb.transactional
   def expand_shards(self):
     '''

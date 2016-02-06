@@ -2,11 +2,6 @@ from google.appengine.ext import ndb
 from google.appengine.api import memcache
 from google.appengine.api import datastore_errors
 
-'''
-  Important things to remember :
-  1. Range should be [-2**63, 2**63]
-'''
-
 MEMCACHE_NAME_TEMPLATE = '{0}-memcache-counter'
 MIDDLE_VALUE = 2 ** 63
 LOCK_VAR_TEMPLATE = '{0}-memlock'
