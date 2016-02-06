@@ -259,8 +259,9 @@ class IncrementOnlyCounter(ndb.Model):
     shard_key_str = self._increment(delta)
 
     # Inserting Log for this shard
-    trx = ShardIncrementTransaction.get_or_insert(request_id)
-    trx.shard_key = ndb.Key(IncrementOnlyShard, shard_key_str)
+    trx = ShardIncrementTransaction(
+        id=request_id,
+        shard_key=ndb.Key(IncrementOnlyShard, shard_key_str))
     trx.put()
 
   @classmethod

@@ -23,11 +23,10 @@ def increment_unsharded_counter(delta, request_id):
 
   counter = IOC.IncrementOnlyShard.get_or_insert(UNSHARDED_COUNTER_KEY)
   counter.count += delta
-  counter.put()
+  key = counter.put()
 
   # Adding Transaction Log Here
-  trx = IncrementTransaction.get_or_insert(request_id)
-  trx.shard_key = counter.key
+  trx = IncrementTransaction(id=request_id, shard_key=key)
   trx.put()
   memcache.incr(UNSHARDED_COUNTER_KEY, delta=delta)
 
