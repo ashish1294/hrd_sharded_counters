@@ -15,7 +15,7 @@ REQ_UNSHARDED = "0"
 REQ_SHARDED_INCREMENT = "1"
 REQ_MEMCACHE = "2"
 
-@ndb.transactional(xg=True, retries=1)
+@ndb.transactional(xg=True)
 def increment_unsharded_counter(delta, request_id):
   log_key = ndb.Key(IncrementTransaction, request_id)
   if log_key.get() is not None:
@@ -38,13 +38,6 @@ def unsharded_counter_value():
     memcache.add(UNSHARDED_COUNTER_KEY, count)
   return count
 
-def increment_sharded_counter(delta):
-  counter = IOC.IncrementOnlyCounter.get_or_insert(
-      SHARDED_COUNTER_KEY,
-      idempotency=True,
-      max_shards=30)
-  counter.increment(delta)
-
 #pylint: disable=unused-argument
 def minify_shard(request):
   counters = IOC.IncrementOnlyCounter.query()
@@ -66,10 +59,9 @@ def status(request):
     response = HttpResponse(str())
   else:
     # Status of all counters
-    val2 = IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY).count
     response = render(request, 'status.html', {
         'unsharded_counter' : unsharded_counter_value(),
-        'sharded_counter' : val2,
+        'sharded_counter' : IOC.IncrementOnlyCounter.get(SHARDED_COUNTER_KEY),
         'memcache_counter' : MC.get(MEMCACHE_COUNTER_KEY),
     })
   return response
@@ -97,7 +89,7 @@ def increment_counter(request):
   elif counter_type == REQ_SHARDED_INCREMENT:
     # Increment Sharded Counter
     try:
-      increment_sharded_counter(delta)
+      IOC.IncrementOnlyCounter.increment(SHARDED_COUNTER_KEY, delta)
     except datastore_errors.TransactionFailedError:
       response = HttpResponse("Request Dropped", status=250)
     else:
