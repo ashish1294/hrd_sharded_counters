@@ -40,7 +40,6 @@ INSTALLED_APPS = (
 )
 
 MIDDLEWARE_CLASSES = (
-    'google.appengine.ext.appstats.recording.AppStatsDjangoMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
