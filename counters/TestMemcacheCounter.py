@@ -1,15 +1,22 @@
 import unittest
 import random
+import time
+from threading import Event
+from threading import Thread
 from google.appengine.ext import testbed
 from google.appengine.datastore import datastore_stub_util
 from google.appengine.ext import ndb
 from google.appengine.api import memcache
+from google.appengine.api import datastore_errors
 from MemcacheCounter import MemcacheCounter as MC
 
 # Increment Test Constants
 INCREMENT_STEPS = 10
 INCREMENT_VALUE = 86
 RAND_INCREMENT_MAX = 100
+NUM_THREADS = 3 # Number of concurrent request
+TIME_AT_PEAK_QPS = 2 # seconds
+DELAY_BETWEEN_THREADS = 1 # seconds
 
 class TestMemcacheCounter(unittest.TestCase):
 
@@ -36,26 +43,25 @@ class TestMemcacheCounter(unittest.TestCase):
 
   def test_increment_decrement(self):
 
-    expected_val = MC.get(self.counter_name) + INCREMENT_STEPS
-
+    val = MC.get(self.counter_name)
     for _ in range(INCREMENT_STEPS):
       MC.increment(self.counter_name)
-    self.assertEqual(expected_val, MC.get(self.counter_name))
+    self.assertEqual(val + INCREMENT_STEPS, MC.get(self.counter_name))
 
     for _ in range(INCREMENT_STEPS):
       MC.decrement(self.counter_name)
-    self.assertEqual(0, MC.get(self.counter_name))
+    self.assertEqual(val, MC.get(self.counter_name))
 
     # Bulk Increment / Decrement
     MC.decrement(self.counter_name, INCREMENT_STEPS)
-    self.assertEqual(-INCREMENT_STEPS, MC.get(self.counter_name))
+    self.assertEqual(val - INCREMENT_STEPS, MC.get(self.counter_name))
 
     MC.increment(self.counter_name, 2 * INCREMENT_STEPS)
-    self.assertEqual(INCREMENT_STEPS, MC.get(self.counter_name))
+    self.assertEqual(val + INCREMENT_STEPS, MC.get(self.counter_name))
 
     # Testing the aliases
-    self.assertEqual(INCREMENT_STEPS, MC.value(self.counter_name))
-    self.assertEqual(INCREMENT_STEPS, MC.count(self.counter_name))
+    self.assertEqual(val + INCREMENT_STEPS, MC.value(self.counter_name))
+    self.assertEqual(val + INCREMENT_STEPS, MC.count(self.counter_name))
 
     # Incrementing / Decrementing by Random amount
     expected_val = MC.get(self.counter_name)
@@ -133,6 +139,40 @@ class TestMemcacheCounter(unittest.TestCase):
 
     memcache.flush_all()
     self.assertEqual(expected_val, MC.get(self.counter_name))
+
+  def threadproc(self, idx, results):
+    '''This function is executed by each thread.'''
+    no_of_req = 0
+    while not self.quitevent.is_set():
+      try:
+        MC.increment(self.counter_name, persist_delay=0)
+        MC.put_to_datastore(self.counter_name)
+        no_of_req += 1
+      except datastore_errors.TransactionFailedError, err:
+        print err
+    results[idx] = no_of_req
+
+  def test_concurrenct_increment(self):
+    print "Starting Concurrent Test. This will take time ..."
+    value = MC.get(self.counter_name)
+    self.quitevent = Event()
+    threads = []
+    results = [None] * NUM_THREADS
+    try:
+      for i in range(NUM_THREADS):
+        thread = Thread(target=self.threadproc, args=(i, results))
+        thread.start()
+        threads.append(thread)
+        time.sleep(DELAY_BETWEEN_THREADS)
+      time.sleep(TIME_AT_PEAK_QPS)
+    except: #pylint: disable=W0702
+      print "Some Unknown Exception"
+
+    self.quitevent.set()
+    for thread in threads:
+      thread.join(1.0)
+    actual_val = MC.get(self.counter_name)
+    self.assertEqual(actual_val, sum(results) + value)
 
   @classmethod
   def tearDownClass(cls):
