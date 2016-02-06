@@ -106,7 +106,9 @@ class MemcacheCounter(ndb.Model):
     if delta >= 0:
       val = memcache.incr(counter_id, delta, initial_value=MIDDLE_VALUE)
     else:
+      print "dec - ", memcache.get(counter_id) - MIDDLE_VALUE, delta
       val = memcache.decr(counter_id, -delta, initial_value=MIDDLE_VALUE)
+      print "dec2 - ", memcache.get(counter_id) - MIDDLE_VALUE, delta
 
     persist_value = val - MIDDLE_VALUE
     if cls._lock_counter(name, persist_delay):

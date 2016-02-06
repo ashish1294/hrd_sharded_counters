@@ -35,12 +35,11 @@ class IncrementOnlyCounter(ndb.Model):
       validator=validate_counter,
       verbose_name='Maximum Number of Shards')
   dynamic_growth = ndb.BooleanProperty(default=True, indexed=False)
-  idempotency = ndb.BooleanProperty(default=False, indexed=False)
   state = ndb.IntegerProperty(default=READ_WRITE)
 
   def __str__(self):
-    return "(Num = %d, Max = %d, Dynamic = %r, Idempotency = %r)" % (
-        self.num_shards, self.max_shards, self.dynamic_growth, self.idempotency)
+    return "(Num = %d, Max = %d, Dynamic = %r)" % (
+        self.num_shards, self.max_shards, self.dynamic_growth)
 
   def __repr__(self):
     return self.__str__()
@@ -136,14 +135,14 @@ class IncrementOnlyCounter(ndb.Model):
     return count
 
   @classmethod
-  def get(cls, name):
-    count = memcache.get(name)
+  def get(cls, name, force_fetch=False, cache_duration=30):
+    count = None if force_fetch else memcache.get(name)
     if count is None:
       counter = ndb.Key(cls, name).get()
       if counter is None:
         return None
       count = counter.count
-      memcache.add(name, count)
+      memcache.add(name, count, cache_duration)
     return count
 
   @property
@@ -153,27 +152,25 @@ class IncrementOnlyCounter(ndb.Model):
     '''
     return self.count
 
+  @classmethod
   @ndb.transactional
-  def expand_shards(self):
+  def expand_shards(cls, name):
     '''
       This function doubles the number of current shards associated with this
       counter - provided it doesn't grow more than the max_shards limit.
       Returns:
-        It returns if there is further space for expansion
+        It returns if the was expansion. None if no counter is found
     '''
-    counter = self.key.get()
-    counter.num_shards = min(counter.max_shards, counter.num_shards * 2)
-    counter.put()
-
-    #Updating the local copy of object
-    self.num_shards = counter.num_shards
-    return counter.num_shards < counter.max_shards
-
-  def can_expand(self):
-    '''
-      This function returns if the counter can be further expanded
-    '''
-    return self.num_shards < self.max_shards
+    counter = ndb.Key(cls, name).get()
+    if counter is None:
+      return None
+    new_shards = min(counter.max_shards, counter.num_shards * 2)
+    if new_shards > counter.num_shards and counter.dynamic_growth:
+      counter.num_shards = new_shards
+      counter.put()
+      return True
+    else:
+      return False
 
   @classmethod
   @ndb.transactional(xg=True)
@@ -191,58 +188,58 @@ class IncrementOnlyCounter(ndb.Model):
     if counter is None:
       return None
 
-    value = counter.num_shards / 2
-    value = min(value, MAX_ENTITIES_PER_TRANSACTION - 1)
-
-    if value != 0:
-      shard_list = counter._get_shards(
-          counter.num_shards - value, counter.num_shards)
-      total_count = 0
-
-      if shard_list[0] is None:
-        key_string = counter._format_shard_key(counter.num_shards - value)
-        shard_list[0] = IncrementOnlyShard.get_or_insert(key_string)
-
-      for shard in shard_list:
-        if shard is not None:
-          total_count += shard.count
-
+    value = min(counter.num_shards / 2, MAX_ENTITIES_PER_TRANSACTION - 1)
+    if value is 0:
+      return False
+    elif value is 1:
+      value = 2
+    shard_list = counter._get_shards(
+        counter.num_shards - value, counter.num_shards)
+    total_count = sum(shard.count for shard in shard_list if shard is not None)
+    if shard_list[0] is None:
+      key_string = counter._format_shard_key(counter.num_shards - value)
+      shard_list[0] = IncrementOnlyShard.get_or_insert(key_string,
+                                                       count=total_count)
+    else:
       shard_list[0].count = total_count
       shard_list[0].put()
 
-      for shard in shard_list[1:]:
-        if shard is not None:
-          shard.count = 0
-          shard.put()
+    for shard in shard_list[1:]:
+      if shard is not None:
+        shard.count = 0
+        shard.put()
 
-      counter.num_shards -= value
-      counter.put()
-
+    counter.num_shards = counter.num_shards - value + 1
+    counter.put()
     return True
 
-  def _increment(self, delta):
+  @classmethod
+  @ndb.transactional(xg=True)
+  def _increment_normal(cls, name, delta):
     '''
       This function increases a random shard by a given quantity. We randomly
       pick any shard counter and add the quantity to it.
       Note: This is not an idempotent function ! It may be incremented multiple
             times for the same request.
       Args:
+        name : name of the counter
         delta : Quantity to be incremented
-
       Returns: the shard_key string that was incremented
     '''
     # Re-fetching counter because it might be stale
-    index = random.randint(0, self.num_shards - 1)
-    shard_key = self._format_shard_key(index)
+    counter = ndb.Key(IncrementOnlyCounter, name).get()
+    if counter is None:
+      return None
+    index = random.randint(0, counter.num_shards - 1)
+    shard_key = counter._format_shard_key(index)
     shard = IncrementOnlyShard.get_or_insert(shard_key)
     shard.count += delta
     shard.put()
-
-    memcache.incr(self.key.id(), delta)
     return shard_key
 
+  @classmethod
   @ndb.transactional(xg=True)
-  def _increment_idempotent(self, delta, request_id):
+  def _increment_idempotent(cls, name, delta, request_id):
     '''
       This function increases a random shard by a given quantity. We randomly
       pick any shard counter and add the quantity to it. This function is an
@@ -250,59 +247,45 @@ class IncrementOnlyCounter(ndb.Model):
       directly. It is an idempotent function - which maintain logs of all
       increment counters and doesn't re-applies them.
       Args:
+        name : Name of the counter
         delta : Quantity to be incremented
         request_id : unique request id generated for this operation
     '''
     log_key = ndb.Key(ShardIncrementTransaction, request_id)
     if log_key.get() is not None:
       return
-    shard_key_str = self._increment(delta)
+    shard_key_str = cls._increment_normal(name, delta)
+    if shard_key_str is None:
+      return None
 
     # Inserting Log for this shard
     trx = ShardIncrementTransaction(
         id=request_id,
         shard_key=ndb.Key(IncrementOnlyShard, shard_key_str))
     trx.put()
+    return shard_key_str
 
   @classmethod
-  @ndb.transactional(xg=True)
-  def increment(cls, name, delta=1):
+  def increment(cls, name, delta=1, idempotency=False):
     '''
       Function that increments a random shard. It generates a unique request id
       for each call using the uuid model
       Args:
+        name : Name of the counter
         delta : Quantity by which a shard has to be incremented (positive)
     '''
-    counter = ndb.Key(IncrementOnlyCounter, name).get()
-    if counter is None:
-      return None
-
-    if counter.idempotency is False:
+    if idempotency is False:
       # Call Normal Version
-      counter._increment(delta)
-      return
+      return cls._increment_normal(name, delta)
 
     request_id = str(uuid.uuid4())
-    success = False
-    shard_growth = counter.dynamic_growth and counter.can_expand()
     retry = True
     while retry:
       try:
-        counter._increment_idempotent(delta, request_id)
-        success = True
-        retry = False
+        return cls._increment_idempotent(name, delta, request_id)
       except datastore_errors.TransactionFailedError:
-        if shard_growth:
-          # Contention Detected. Increasing number of shards here and then
-          # retrying transaction.
-          shard_growth = counter.expand_shards()
-        else:
-          # If the shard is already max stop retrying and give up. There is too
-          # much contention - beyond what we can handle
-          retry = False
-    if not success:
-      raise datastore_errors.TransactionFailedError("Unable to increment \
-        counter even after max expansion")
+        retry = cls.expand_shards(name)
+    raise datastore_errors.TransactionFailedError('Failed')
 
   # Creating useful aliases for popular function
   incr = increment
