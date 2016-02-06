@@ -1,4 +1,4 @@
-application: hrd-sharded-counter-12it14
+application: hrd-ajith1
 version: 1
 runtime: python27
 api_version: 1
@@ -7,13 +7,16 @@ threadsafe: true
 handlers:
 - url: /static
   static_dir: shard_app/static/
+  secure: optional
 
 - url: /cron/.*
   script: hrd_sharded_counters.wsgi.application
   login: admin
+  secure: optional
 
 - url: .*
   script: hrd_sharded_counters.wsgi.application
+  secure: optional
 
 libraries:
 - name: django
