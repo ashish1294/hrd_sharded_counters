@@ -2,7 +2,6 @@ import uuid
 from django.shortcuts import render
 from django.http import HttpResponse
 from google.appengine.ext import ndb
-from google.appengine.api import memcache
 from google.appengine.api import datastore_errors
 from counters import IncrementOnlyCounter as IOC
 from counters.MemcacheCounter import MemcacheCounter as MC
@@ -28,14 +27,9 @@ def increment_unsharded_counter(delta, request_id):
   # Adding Transaction Log Here
   trx = IncrementTransaction(id=request_id, shard_key=key)
   trx.put()
-  memcache.incr(UNSHARDED_COUNTER_KEY, delta=delta)
 
 def unsharded_counter_value():
-  count = memcache.get(UNSHARDED_COUNTER_KEY)
-  if count is None:
-    count = IOC.IncrementOnlyShard.get_or_insert(UNSHARDED_COUNTER_KEY).count
-    memcache.add(UNSHARDED_COUNTER_KEY, count)
-  return count
+  return IOC.IncrementOnlyShard.get_or_insert(UNSHARDED_COUNTER_KEY).count
 
 #pylint: disable=unused-argument
 def minify_shard(request):

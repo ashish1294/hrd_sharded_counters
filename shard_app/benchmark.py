@@ -1,32 +1,22 @@
+import csv
 from itertools import count
 import matplotlib.pyplot as mpplt
 
 class GraphPlotter(object):
 
   @classmethod
+  def read_csv(cls, filename):
+
+    # Read Content from file
+    with open(filename, 'r') as fstream:
+      reader = csv.reader(fstream, quotechar='"')
+      data = [[int(row[0]), int(row[1])] for row in reader if len(row) > 0]
+    return sorted(data, key=lambda x: x[0])
+
+  @classmethod
   def parse_jmeter_log(cls, filename):
-    file_des = open(filename)
-    data = file_des.read()
-    file_des.close()
-    lines = []
-    data = data.split('\n')
-
-    for i in data:
-      line = i.split(',')
-      lines.append(line)
-
-    request_times = []
-    for line in lines:
-      if line == ['']:
-        continue
-      line[0] = int(line[0])
-      line[1] = int(line[1])
-      request_times.append(line)
-
-    def compare(request1, request2):
-      return request1[0] - request2[0]
-
-    request_times.sort(compare)
+    request_times = cls.read_csv(filename)
+    request_times.sort(lambda x: x[0])
 
     #return [[i[0] for i in request_times], [i[1] for i in request_times]]
     minutes = []
@@ -59,7 +49,7 @@ class GraphPlotter(object):
 
       data.append([number_of_requests, succeded_requests, total_response_times])
 
-    data.sort(compare)
+    data.sort(lambda x: x[0])
     final_data = []
     i = 0
     while i < len(data):
@@ -79,7 +69,7 @@ class GraphPlotter(object):
       i = j
       final_data.append(tmp)
 
-    final_data.sort(compare)
+    final_data.sort(lambda x: x[0])
     final_list = [[], [], []]
     for tmp in final_data:
       final_list[0].append(tmp[0])
