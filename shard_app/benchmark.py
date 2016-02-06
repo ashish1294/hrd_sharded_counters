@@ -16,12 +16,12 @@ class GraphPlotter(object):
       lines.append(line)
 
     request_times = []
-    for i in lines:
-      if i == ['']:
+    for line in lines:
+      if line == ['']:
         continue
-      i[0] = int(i[0])
-      i[1] = int(i[1])
-      request_times.append(i)
+      line[0] = int(line[0])
+      line[1] = int(line[1])
+      request_times.append(line)
 
     def compare(request1, request2):
       return request1[0] - request2[0]

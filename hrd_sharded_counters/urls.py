@@ -15,7 +15,10 @@ Including another URLconf
 """
 from django.conf.urls import include, url
 from django.contrib import admin
-from shard_app.views import *
+from shard_app.views import minify_shard
+from shard_app.views import increment_counter
+from shard_app.views import status
+
 urlpatterns = [
     url(r'^admin/', include(admin.site.urls)),
     url(r'^cron/minify_shard/?$', minify_shard),
