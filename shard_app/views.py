@@ -53,12 +53,22 @@ def status(request):
   if counter_type == REQ_UNSHARDED:
     response = HttpResponse(str(unsharded_counter_value()))
   elif counter_type == REQ_SHARDED_INCREMENT:
-    val = IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY).count
+    val = IOC.IncrementOnlyCounter.get(SHARDED_COUNTER_KEY)
+    if val is None:
+      IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY,
+                                             idempotency=True,
+                                             max_shards=40)
+      val = IOC.IncrementOnlyCounter.get(SHARDED_COUNTER_KEY)
     response = HttpResponse(str(val))
   elif counter_type == REQ_MEMCACHE:
     response = HttpResponse(str())
   else:
     # Status of all counters
+    sharded_val = IOC.IncrementOnlyCounter.get(SHARDED_COUNTER_KEY)
+    if sharded_val is None:
+      IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY,
+                                             idempotency=True,
+                                             max_shards=40)
     response = render(request, 'status.html', {
         'unsharded_counter' : unsharded_counter_value(),
         'sharded_counter' : IOC.IncrementOnlyCounter.get(SHARDED_COUNTER_KEY),
