@@ -23,9 +23,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = '$vw*u5sni8k$0h0fjo%*#!6nq+t*x4-9=1c568n==%@!$gb6j%'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -56,7 +56,8 @@ ROOT_URLCONF = 'hrd_sharded_counters.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(os.path.join(BASE_DIR, 'shard_app'), 'templates')],
+        'DIRS':
+            [os.path.join(os.path.join(BASE_DIR, 'shard_app'), 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
