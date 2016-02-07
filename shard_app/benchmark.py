@@ -1,5 +1,4 @@
 import csv
-from itertools import count
 import matplotlib.pyplot as mpplt
 
 class GraphPlotter(object):
@@ -7,90 +6,70 @@ class GraphPlotter(object):
   @classmethod
   def read_csv(cls, filename):
 
+    def process_row(row):
+      return [int(row[0]), int(row[1]), int(row[3])]
+
     # Read Content from file
     with open(filename, 'r') as fstream:
       reader = csv.reader(fstream, quotechar='"')
-      data = [[int(row[0]), int(row[1])] for row in reader if len(row) > 0]
+      data = [process_row(row) for row in reader if len(row) > 0]
     return sorted(data, key=lambda x: x[0])
 
   @classmethod
+  def process_minute(cls, minute):
+    zipped = zip(*minute)
+    return [len(minute), zipped[2].count(200), sum(zipped[1])]
+
+  @classmethod
   def parse_jmeter_log(cls, filename):
-    request_times = cls.read_csv(filename)
-    request_times.sort(lambda x: x[0])
+    # Each Request Data
+    req_list = cls.read_csv(filename)
+    req_list.sort(lambda x: x[0])
+    minutes = [[]] * (((req_list[-1][0] - req_list[0][0]) / 60000) + 1)
+    for req in req_list:
+      minutes[(req[0] - req_list[0][0]) / 60000].append(req)
 
-    #return [[i[0] for i in request_times], [i[1] for i in request_times]]
-    minutes = []
-    time_start = request_times[0][0]
-    i = 0
-    for time_start in count(request_times[0][0], 60000):
-      tmp = []
-      while request_times[i][0] < time_start + 60000:
-        tmp.append(request_times[i])
-        i += 1
-        if i >= len(request_times):
-          break
-      minutes.append(tmp)
-      if i >= len(request_times):
-        break
-
-    data = []
-    for i in minutes:
-      number_of_requests = len(i)
-      # Cut off for being included
-      if number_of_requests < 20:
-        continue
-
-      succeded_requests = 0
-      total_response_times = 0
-      for request in i:
-        if request[3].strip() == '200':
-          succeded_requests += 1
-        total_response_times += request[1]
-
-      data.append([number_of_requests, succeded_requests, total_response_times])
-
+    # Each Minute [no_of req, success, total_resp_time]
+    data = [cls.process_minute(i) for i in minutes if len(i) >= 20]
     data.sort(lambda x: x[0])
+
     final_data = []
     i = 0
     while i < len(data):
       j = i
       tmp = [0, 0, 0]
-      while j < len(data):
-        if data[i][0] == data[j][0]:
-          tmp[0] += data[j][0]
-          tmp[1] += data[j][1]
-          tmp[2] += data[j][2]
-          j += 1
-        else:
-          break
-      tmp[0] = tmp[0] / (j - i)
-      tmp[1] = float(tmp[1]) / (j - i)
-      tmp[2] = float(tmp[2]) / (j - i)
+      while data[i][0] == data[j][0] and j < len(data):
+        tmp[0] += data[j][0]
+        tmp[1] += data[j][1]
+        tmp[2] += data[j][2]
+        j += 1
+      diff = j - i
+      tmp[0] = tmp[0] / diff
+      tmp[1] = (tmp[1] * 100.0) / (diff * tmp[0])
+      tmp[2] = float(tmp[2]) / (diff * tmp[0])
       i = j
       final_data.append(tmp)
 
-    final_data.sort(lambda x: x[0])
-    final_list = [[], [], []]
-    for tmp in final_data:
-      final_list[0].append(tmp[0])
-      final_list[1].append(tmp[1] * 100 / float(tmp[0]))
-      final_list[2].append(tmp[2] / float(tmp[0]))
+    final_list = [zip(*final_data)]
 
     return final_list
 
   @classmethod
-  def plot_grpahs(cls):
+  def plot_graphs(cls):
     #Parsing Data from log File
-    sharded_test = cls.parse_jmeter_log('sharded_step.csv')
-    unsharded_test = cls.parse_jmeter_log('unsharded_step.csv')
+    sharded_test = cls.parse_jmeter_log('load_test/data/sharded.csv')
+    unsharded_test = cls.parse_jmeter_log('load_test/data/unsharded.csv')
+    memcache_test = cls.parse_jmeter_log('load_test/data/memcache.csv')
 
     figure = mpplt.figure()
     plt = figure.add_subplot(2, 1, 1)
     plt.set_title("Average Response Time")
-    plt.plot(sharded_test[0], sharded_test[2], '-',
-             dashes=[4, 4], color='green', label='Sharded Counter')
+    plt.plot(sharded_test[0], sharded_test[2], '-', dashes=[4, 4],
+             color='green', label='Sharded Counter')
     plt.plot(unsharded_test[0], unsharded_test[2], color='red',
              label='Unsharded Counter')
+    plt.plot(memcache_test[0], memcache_test[2], '.', dashes=[4, 2, 4],
+             color='blue', label='Memcache Counter')
     plt.legend()
     plt.set_xlabel('Request Rate / Min')
     plt.set_ylabel('Response Time (ms)')
@@ -101,6 +80,8 @@ class GraphPlotter(object):
              color='green', label='Sharded Counter')
     plt.plot(unsharded_test[0], unsharded_test[1], color='red',
              label='Unsharded Counter')
+    plt.plot(memcache_test[0], memcache_test[1], '.', dashes=[4, 2, 4],
+             color='blue', label='Memcache Counter')
     plt.legend()
     plt.set_xlabel("Request Rate / Min")
     plt.set_ylabel('% of requests succeeded')
@@ -111,10 +92,12 @@ class GraphPlotter(object):
     figure = mpplt.figure()
     plt = figure.add_subplot(1, 1, 1)
     plt.set_title("Average Response Time")
-    plt.plot(sharded_test[0], sharded_test[2], '-',
-             dashes=[4, 4], color='green', label='Sharded Counter')
+    plt.plot(sharded_test[0], sharded_test[2], '-', dashes=[4, 4],
+             color='green', label='Sharded Counter')
     plt.plot(unsharded_test[0], unsharded_test[2], color='red',
-             label='Unsharded Counter')
+             label='Unsharded  Counter')
+    plt.plot(memcache_test[0], memcache_test[2], '.', dashes=[4, 2, 4],
+             color='blue', label='Memcache Counter')
     plt.legend()
     plt.set_xlabel('Request Rate / Min')
     plt.set_ylabel('Response Time (ms)')
@@ -123,13 +106,15 @@ class GraphPlotter(object):
     figure.clf()
     plt = figure.add_subplot(1, 1, 1)
     plt.set_title("Transaction Success Rate")
-    plt.plot(unsharded_test[0], unsharded_test[1], '-',
-             dashes=[4, 4], color='green', label='Sharded Counter')
-    plt.plot(sharded_test[0], sharded_test[1], color='red',
+    plt.plot(sharded_test[0], sharded_test[1], '-', dashes=[4, 4],
+             color='green', label='Sharded Counter')
+    plt.plot(unsharded_test[0], unsharded_test[1], color='red',
              label='Unsharded Counter')
+    plt.plot(memcache_test[0], memcache_test[1], '.', dashes=[4, 2, 4],
+             color='blue', label='Memcache Counter')
     plt.legend()
     plt.set_xlabel("Request Rate / Min")
     plt.set_ylabel('% of requests succeeded')
     figure.savefig('success_rate.pdf', facecolor='white', edgecolor='black')
 
-GraphPlotter.plot_grpahs()
+GraphPlotter.plot_graphs()
