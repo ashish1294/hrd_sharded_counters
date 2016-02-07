@@ -261,15 +261,12 @@ class TestIncrementOnlyTest(unittest.TestCase):
     self.quitevent = Event()
     threads = []
     results = [None] * NUM_THREADS
-    try:
-      for i in range(NUM_THREADS):
-        thread = Thread(target=self.threadproc, args=(i, results))
-        thread.start()
-        threads.append(thread)
-        time.sleep(DELAY_BETWEEN_THREADS)
-      time.sleep(TIME_AT_PEAK_QPS)
-    except: #pylint: disable=W0702
-      print "Some Unknown Exception"
+    for i in range(NUM_THREADS):
+      thread = Thread(target=self.threadproc, args=(i, results))
+      thread.start()
+      threads.append(thread)
+      time.sleep(DELAY_BETWEEN_THREADS)
+    time.sleep(TIME_AT_PEAK_QPS)
 
     self.quitevent.set()
     for thread in threads:

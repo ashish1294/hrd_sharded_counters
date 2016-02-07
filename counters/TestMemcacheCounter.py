@@ -7,14 +7,13 @@ from google.appengine.ext import testbed
 from google.appengine.datastore import datastore_stub_util
 from google.appengine.ext import ndb
 from google.appengine.api import memcache
-from google.appengine.api import datastore_errors
 from MemcacheCounter import MemcacheCounter as MC
 
 # Increment Test Constants
 INCREMENT_STEPS = 10
 INCREMENT_VALUE = 86
 RAND_INCREMENT_MAX = 100
-NUM_THREADS = 3 # Number of concurrent request
+NUM_THREADS = 10 # Number of concurrent request
 TIME_AT_PEAK_QPS = 2 # seconds
 DELAY_BETWEEN_THREADS = 1 # seconds
 
@@ -144,12 +143,9 @@ class TestMemcacheCounter(unittest.TestCase):
     '''This function is executed by each thread.'''
     no_of_req = 0
     while not self.quitevent.is_set():
-      try:
-        MC.increment(self.counter_name, persist_delay=0)
-        MC.put_to_datastore(self.counter_name)
-        no_of_req += 1
-      except datastore_errors.TransactionFailedError, err:
-        print err
+      MC.increment(self.counter_name, persist_delay=0)
+      MC.put_to_datastore(self.counter_name)
+      no_of_req += 1
     results[idx] = no_of_req
 
   def test_concurrenct_increment(self):
@@ -158,15 +154,12 @@ class TestMemcacheCounter(unittest.TestCase):
     self.quitevent = Event()
     threads = []
     results = [None] * NUM_THREADS
-    try:
-      for i in range(NUM_THREADS):
-        thread = Thread(target=self.threadproc, args=(i, results))
-        thread.start()
-        threads.append(thread)
-        time.sleep(DELAY_BETWEEN_THREADS)
-      time.sleep(TIME_AT_PEAK_QPS)
-    except: #pylint: disable=W0702
-      print "Some Unknown Exception"
+    for i in range(NUM_THREADS):
+      thread = Thread(target=self.threadproc, args=(i, results))
+      thread.start()
+      threads.append(thread)
+      time.sleep(DELAY_BETWEEN_THREADS)
+    time.sleep(TIME_AT_PEAK_QPS)
 
     self.quitevent.set()
     for thread in threads:
