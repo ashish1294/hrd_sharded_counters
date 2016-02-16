@@ -7,6 +7,10 @@ install:
   - pip install coveralls
 script:
   - tox
+cache:
+  directories:
+    - django/
+sudo: false
 notifications:
   irc: "chat.freenode.net#bug-assassins"
   on_success: always
