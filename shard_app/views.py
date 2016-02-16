@@ -49,8 +49,9 @@ def status(request):
     val = IOC.IncrementOnlyCounter.get(SHARDED_COUNTER_KEY)
     if val is None:
       IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY,
-                                             idempotency=True,
-                                             max_shards=40)
+                                             max_shards=80,
+                                             num_shards=40,
+                                             dynamic_growth=False)
       val = IOC.IncrementOnlyCounter.get(SHARDED_COUNTER_KEY)
     response = HttpResponse(str(val))
   elif counter_type == REQ_MEMCACHE:
@@ -60,8 +61,9 @@ def status(request):
     sharded_val = IOC.IncrementOnlyCounter.get(SHARDED_COUNTER_KEY)
     if sharded_val is None:
       IOC.IncrementOnlyCounter.get_or_insert(SHARDED_COUNTER_KEY,
-                                             idempotency=True,
-                                             max_shards=40)
+                                             num_shards=40,
+                                             max_shards=80,
+                                             dynamic_growth=False)
     response = render(request, 'status.html', {
         'unsharded_counter' : unsharded_counter_value(),
         'sharded_counter' : IOC.IncrementOnlyCounter.get(SHARDED_COUNTER_KEY),
@@ -92,7 +94,8 @@ def increment_counter(request):
   elif counter_type == REQ_SHARDED_INCREMENT:
     # Increment Sharded Counter
     try:
-      IOC.IncrementOnlyCounter.increment(SHARDED_COUNTER_KEY, delta)
+      IOC.IncrementOnlyCounter.increment(SHARDED_COUNTER_KEY, delta,
+                                         idempotency=True)
     except datastore_errors.TransactionFailedError:
       response = HttpResponse("Request Dropped", status=250)
     else:
