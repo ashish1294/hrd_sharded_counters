@@ -1,5 +1,6 @@
 import csv
 import matplotlib.pyplot as mpplt
+from matplotlib.font_manager import FontProperties
 
 class GraphPlotter(object):
 
@@ -24,21 +25,22 @@ class GraphPlotter(object):
   def parse_jmeter_log(cls, filename):
     # Each Request Data
     req_list = cls.read_csv(filename)
-    req_list.sort(lambda x: x[0])
-    minutes = [[]] * (((req_list[-1][0] - req_list[0][0]) / 60000) + 1)
+    req_list.sort(key=lambda x: x[0])
+    total_min = (((req_list[-1][0] - req_list[0][0]) / 120000) + 1)
+    minutes = [[] for i in range(total_min)]
     for req in req_list:
-      minutes[(req[0] - req_list[0][0]) / 60000].append(req)
+      minutes[(req[0] - req_list[0][0]) / 120000].append(req)
 
     # Each Minute [no_of req, success, total_resp_time]
     data = [cls.process_minute(i) for i in minutes if len(i) >= 20]
-    data.sort(lambda x: x[0])
-
+    data.sort(key=lambda x: x[0])
     final_data = []
     i = 0
+
     while i < len(data):
       j = i
       tmp = [0, 0, 0]
-      while data[i][0] == data[j][0] and j < len(data):
+      while j < len(data) and data[i][0] == data[j][0]:
         tmp[0] += data[j][0]
         tmp[1] += data[j][1]
         tmp[2] += data[j][2]
@@ -47,11 +49,10 @@ class GraphPlotter(object):
       tmp[0] = tmp[0] / diff
       tmp[1] = (tmp[1] * 100.0) / (diff * tmp[0])
       tmp[2] = float(tmp[2]) / (diff * tmp[0])
+      tmp[0] = tmp[0] / 2
       i = j
       final_data.append(tmp)
-
-    final_list = [zip(*final_data)]
-
+    final_list = zip(*final_data)
     return final_list
 
   @classmethod
@@ -68,7 +69,7 @@ class GraphPlotter(object):
              color='green', label='Sharded Counter')
     plt.plot(unsharded_test[0], unsharded_test[2], color='red',
              label='Unsharded Counter')
-    plt.plot(memcache_test[0], memcache_test[2], '.', dashes=[4, 2, 4],
+    plt.plot(memcache_test[0], memcache_test[2], '.', dashes=[4, 4, 4],
              color='blue', label='Memcache Counter')
     plt.legend()
     plt.set_xlabel('Request Rate / Min')
@@ -80,7 +81,7 @@ class GraphPlotter(object):
              color='green', label='Sharded Counter')
     plt.plot(unsharded_test[0], unsharded_test[1], color='red',
              label='Unsharded Counter')
-    plt.plot(memcache_test[0], memcache_test[1], '.', dashes=[4, 2, 4],
+    plt.plot(memcache_test[0], memcache_test[1], '.', dashes=[4, 4, 4],
              color='blue', label='Memcache Counter')
     plt.legend()
     plt.set_xlabel("Request Rate / Min")
@@ -96,25 +97,38 @@ class GraphPlotter(object):
              color='green', label='Sharded Counter')
     plt.plot(unsharded_test[0], unsharded_test[2], color='red',
              label='Unsharded  Counter')
-    plt.plot(memcache_test[0], memcache_test[2], '.', dashes=[4, 2, 4],
+    plt.plot(memcache_test[0], memcache_test[2], '.', dashes=[4, 4, 4],
              color='blue', label='Memcache Counter')
-    plt.legend()
     plt.set_xlabel('Request Rate / Min')
     plt.set_ylabel('Response Time (ms)')
+    box = plt.get_position()
+    plt.set_position([box.x0, box.y0 + box.height * 0.1, box.width,
+                      box.height * 0.9])
+    font = FontProperties()
+    font.set_size('small')
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),
+               fancybox=True, shadow=True, ncol=5, prop=font)
     figure.savefig('avg_resp_time.pdf', facecolor='white', edgecolor='black')
 
     figure.clf()
     plt = figure.add_subplot(1, 1, 1)
+    plt.set_ylim([0, 110])
     plt.set_title("Transaction Success Rate")
-    plt.plot(sharded_test[0], sharded_test[1], '-', dashes=[4, 4],
+    plt.plot(unsharded_test[0], unsharded_test[1], '-', dashes=[4, 4],
              color='green', label='Sharded Counter')
-    plt.plot(unsharded_test[0], unsharded_test[1], color='red',
+    plt.plot(sharded_test[0], sharded_test[1], color='red',
              label='Unsharded Counter')
-    plt.plot(memcache_test[0], memcache_test[1], '.', dashes=[4, 2, 4],
+    plt.plot(memcache_test[0], memcache_test[1], '.', dashes=[4, 4, 4],
              color='blue', label='Memcache Counter')
-    plt.legend()
     plt.set_xlabel("Request Rate / Min")
     plt.set_ylabel('% of requests succeeded')
+    box = plt.get_position()
+    plt.set_position([box.x0, box.y0 + box.height * 0.1, box.width,
+                      box.height * 0.9])
+    font = FontProperties()
+    font.set_size('small')
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),
+               fancybox=True, shadow=True, ncol=5, prop=font)
     figure.savefig('success_rate.pdf', facecolor='white', edgecolor='black')
 
 GraphPlotter.plot_graphs()
