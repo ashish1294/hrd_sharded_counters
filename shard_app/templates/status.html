@@ -15,12 +15,17 @@
 			<h1>Memcache Counter</h1>
 			<h2>{{memcache_counter}}</h2>
 		</div>
+		<div id="dynamic_counter">
+			<h1>Dynamic Counter</h1>
+			<h2>{{dynamic_counter}}</h2>
+		</div>
 		<div>
 			<form action="/increment" method="GET">
 				<select name="type">
 					<option value="0">Unsharded Counter</option>
 					<option value="1">Sharded Increment Counter</option>
 					<option value="2">Memcache Counter</option>
+					<option value="3">Dynamic Counter</option>
 				</select>
 				<input type="number" min="0" name="delta">
 				<input type="submit" value="Submit"/>
