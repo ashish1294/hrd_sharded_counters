@@ -25,6 +25,7 @@ class TestDynamicCounter(unittest.TestCase):
   def test_exist(self):
     self.assertFalse(DC.exist('test-counter'))
     DC.increment('test-counter')
+    DC.minify('test-counter')
     self.assertTrue(DC.exist('test-counter'))
     DC.delete('test-counter')
     self.assertFalse(DC.exist('test-counter'))
@@ -62,5 +63,5 @@ class TestDynamicCounter(unittest.TestCase):
     val = DC.get_value('set-count')
     DC.increment('set-count', 5)
     DC.set('set-count', val + 10)
-    val += 15
+    val += 10
     self.assertEquals(DC.get_value('set-count'), val)
