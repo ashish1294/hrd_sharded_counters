@@ -120,3 +120,7 @@ def increment_counter(request):
     response = HttpResponse("Invalid parameters" + str(counter_type))
 
   return response
+
+def minify_dynamic(request):
+  DC.minify(DYNAMIC_COUNTER_KEY)
+  return HttpResponse("Successfully minified")

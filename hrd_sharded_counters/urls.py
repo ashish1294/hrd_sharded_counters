@@ -18,10 +18,12 @@ from django.contrib import admin
 from shard_app.views import minify_shard
 from shard_app.views import increment_counter
 from shard_app.views import status
+from shard_app.views import minify_dynamic
 
 urlpatterns = [
     url(r'^admin/', include(admin.site.urls)),
     url(r'^cron/minify_shard/?$', minify_shard),
+    url(r'^cron/minify_dynamic', minify_dynamic),
     url(r'^increment/?$', increment_counter),
-    url(r'^status/?$', status)
+    url(r'^status/?$', status),
 ]

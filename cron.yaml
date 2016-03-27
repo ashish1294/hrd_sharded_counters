@@ -2,3 +2,6 @@ cron:
 - description: job to minify shards regularly
   url: /cron/shard_minify/
   schedule: every 100 hours
+- description: job to minify Dynamic Counter regularly
+  url: /cron/minify_dynamic/
+  schedule: every 100 hours
