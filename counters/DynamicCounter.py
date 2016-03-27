@@ -34,7 +34,7 @@ class DynamicCounter(ndb.Model):
 
   @ndb.transactional
   @classmethod
-  def add_to_count(cls, counter_name, value=0):
+  def _add_to_count(cls, counter_name, value=0):
     '''
       This function adds to the main counter value.
       Returns : None if counter name is invalid. Else it returns the new counter
@@ -46,6 +46,18 @@ class DynamicCounter(ndb.Model):
     counter.count += value
     counter.save()
     return counter.count
+
+  @ndb.transactional
+  @classmethod
+  def _set_count(cls, counter_name, value=0):
+    '''
+      This function sets the main counter value.
+    '''
+    counter = cls._get_key(counter_name).get()
+    if counter is None:
+      return None
+    counter.count = value
+    counter.save()
 
   @classmethod
   def increment(cls, counter_name, value=1):
@@ -69,6 +81,18 @@ class DynamicCounter(ndb.Model):
     total = 0
     for shard in shards:
       total += shard.value
-    value = cls.add_to_count(counter_name, total)
-    [shard.delete() for shard in shards]
+    value = cls._add_to_count(counter_name, total)
+    for shard in shards:
+      shard.delete()
     return value
+
+  @classmethod
+  def set(cls, counter_name, value=0):
+    '''
+      This function sets the count of the counter to a given value
+    '''
+    counter_key = cls._get_key(counter_name)
+    shards = DynamicShard.query(DynamicShard.counter_key == counter_key).fetch()
+    for shard in shards:
+      shard.delete()
+    return cls._set_count(value)
